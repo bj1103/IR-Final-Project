@@ -14,6 +14,16 @@ class DRMMDataset(Dataset):
             self.qrels = json.load(f_qrel)
         self.pos_docs = dict()
         self.neg_docs = dict()
+
+        for qid in self.qrels:
+            self.pos_docs[qid] = list()
+            self.neg_docs[qid] = list()
+            for doc in self.qrels[qid]['document']:
+                if self.qrels[qid]['document'][doc] > 0:
+                    self.pos_docs[qid].append(doc)
+                else:
+                    self.neg_docs[qid].append(doc)
+
         self.mode = mode
 
         with open(topics_file) as f_topic:
@@ -35,14 +45,6 @@ class DRMMDataset(Dataset):
             word_model = api.load('word2vec-google-news-300')
         self.word2id = word_model.key_to_index
 
-        for qid in self.qrels:
-            self.pos_docs[qid] = list()
-            self.neg_docs[qid] = list()
-            for doc in self.qrels[qid]['document']:
-                if self.qrels[qid]['document'][doc] > 0:
-                    self.pos_docs[qid].append(doc)
-                else:
-                    self.neg_docs[qid].append(doc)
     def __len__(self):
         return len(self.qids)
 
@@ -86,7 +88,7 @@ def collate_batch(batch):
     q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
     p = torch.reshape(torch.nn.utils.rnn.pad_sequence(p), (batch_size, -1))
     n = torch.reshape(torch.nn.utils.rnn.pad_sequence(n), (batch_size, -1))
-    return q, p, n
+    return q, p, n, q[0].shape[0]
 
 if __name__ == '__main__':
     import argparse
@@ -100,6 +102,6 @@ if __name__ == '__main__':
     # a, b, c = test[0]
     # print(b)
     loader = DataLoader(test, batch_size=1, shuffle=False, collate_fn=collate_batch)
-    for ba in loader:
-        print(ba)
+    for q, p, n, l in loader:
+        print(q, p, n, l, sep='\n')
         break
