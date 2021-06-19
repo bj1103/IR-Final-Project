@@ -4,14 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class DRMM(nn.Module):
-    def __init__(self, word_embedding: nn.Embedding, embed_dim: int = 300, 
-                 nbins: int = 30, device: str = 'cuda') -> None:
+    def __init__(self, embed_dim: int = 300, nbins: int = 30, device: str = 'cuda') -> None:
         super(DRMM, self).__init__()
         self.device = device
-        self.word_embedding = word_embedding
-        self.word_embedding.requires_grad = False
-        self.embed_dim = embed_dim
-
         self.nbins = nbins
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
@@ -38,17 +33,9 @@ class DRMM(nn.Module):
         max_query_len = query.shape[1]
         max_document_len = document.shape[1]
 
-        query = self.word_embedding(query)
-        document = self.word_embedding(document)
-        print(query.shape)
-        print(document.shape)
-
-        query_stack = torch.stack([query] * max_document_len, dim=2)
-        # query_stack: (batch, max_query_len, max_document_len, embed)
-        document = document.unsqueeze(1)
-        # document: (batch, 1, max_document_len, embed)
-
-        interaction = self.cos(query_stack, document)
+        query = query / query.norm(dim=2).unsqueeze(2)
+        document = document / document.norm(dim=2).unsqueeze(2)
+        interaction = torch.bmm(query, document.transpose(1,2))
         # interaction: (batch, max_query_len, max_document_len)
 
         # h.shape: (batch, max_query_len, self.nbins)
@@ -59,9 +46,9 @@ class DRMM(nn.Module):
         h = torch.log1p(h)
 
         # z.shape: (batch, max_query_len)
-        z = self.ffn(h).squeeze()
+        z = self.ffn(h).squeeze(-1)
         # g.shape: (batch, max_query_len)
-        g = self.gate(query).squeeze()
+        g = self.gate(query).squeeze(-1)
         g = self.softmax(g)
 
         scores = torch.sum(z * g, dim=1)
