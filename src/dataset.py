@@ -15,7 +15,7 @@ class DRMMDataset(Dataset):
         self.mode = mode
         self.use_tag = use_tag
         self.docs_dir = Path(docs_dir)
-        
+
         if word_model is None:
             word_model = api.load('word2vec-google-news-300')
         self.word2id = word_model.key_to_index
@@ -25,7 +25,17 @@ class DRMMDataset(Dataset):
         with open(topics_file) as f_topic:
             self.topics = json.load(f_topic)
 
-        for qid in self.qrels:
+        total_qids = list(self.qrels.keys())
+        total_qids = np.array([int(qid) for qid in total_qids])
+        if self.mode == 'train':
+            indexs = list(set(range(len(total_qids))) - set(range(0, len(total_qids), 5)))
+        else:
+            indexs = list(range(0, len(total_qids), 5))
+
+        self.qids = total_qids[indexs]
+
+        for qid in self.qids:
+            qid = str(qid)
             self.pos_docs[qid] = list()
             self.neg_docs[qid] = list()
             for doc in self.qrels[qid]['document']:
@@ -33,16 +43,6 @@ class DRMMDataset(Dataset):
                     self.pos_docs[qid].append(doc)
                 else:
                     self.neg_docs[qid].append(doc)
-
-
-        total_qids = list(self.topics.keys())
-        total_qids = np.array([int(qid) for qid in total_qids])
-        if self.mode == 'train':
-            indexs = list(set(range(len(total_qids))) - set((range(0, len(total_qids), 5))))
-        else:
-            indexs = list(range(0, len(total_qids), 5))
-
-        self.qids = total_qids[indexs]
 
     def __len__(self):
         return len(self.qids)
@@ -64,6 +64,7 @@ class DRMMDataset(Dataset):
             neg_doc_content = self.convertSentence(f_neg_doc.read())
         
         return query, pos_doc_content, neg_doc_content
+
     def convertSentence(self, s):
         vec = list()
         for word in s.split():
@@ -82,7 +83,7 @@ def collate_batch(batch):
     q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
     p = torch.reshape(torch.nn.utils.rnn.pad_sequence(p), (batch_size, -1))
     n = torch.reshape(torch.nn.utils.rnn.pad_sequence(n), (batch_size, -1))
-    l = torch.tensor([q_vec.shape[0] for q_vec in q])
+    l = q[0].shape[0]
     return q, p, n, l
 
 if __name__ == '__main__':
