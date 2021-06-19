@@ -88,7 +88,7 @@ def collate_batch(batch):
     q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
     p = torch.reshape(torch.nn.utils.rnn.pad_sequence(p), (batch_size, -1))
     n = torch.reshape(torch.nn.utils.rnn.pad_sequence(n), (batch_size, -1))
-    return q, p, n, q[0].shape[0]
+    return q, p, n
 
 if __name__ == '__main__':
     import argparse
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     # print('Load done')
     # a, b, c = test[0]
     # print(b)
-    loader = DataLoader(test, batch_size=1, shuffle=False, collate_fn=collate_batch)
-    for q, p, n, l in loader:
-        print(q, p, n, l, sep='\n')
+    loader = DataLoader(test, batch_size=2, shuffle=False, collate_fn=collate_batch)
+    for q, p, n in loader:
+        print(q, p, n, sep='\n')
         break
