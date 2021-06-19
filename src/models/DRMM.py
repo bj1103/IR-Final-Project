@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class DRMM(nn.Module):
-    def __init__(self, word_embedding: nn.Embedding, embed_dim: int = 300, nbins: int = 30) -> None:
+    def __init__(self, word_embedding: nn.Embedding, embed_dim: int = 300, 
+                 nbins: int = 30) -> None:
         super(DRMM, self).__init__()
         self.word_embedding = word_embedding
         self.word_embedding.requires_grad = False
@@ -23,17 +24,21 @@ class DRMM(nn.Module):
         self.gate = nn.Linear(embed_dim, 1)
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, query: Tensor, document: Tensor) -> Tensor:
+    def forward(self, query: Tensor, query_len: list[int], document: Tensor) -> Tensor:
         """Computes relevance score between a query and a document
         Args:
-            query: (batch_size, max_query_len)
-            document: (batch_size, max_document_len)
+            query: (batch_size, max_query_len) query id sequence
+            query_list: [batch_size] query length for each query
+            document: (batch_size, max_document_len) document id sequence
         Returns:
             scores: (batch_size) relevance scores
         """
 
         max_query_len = query.shape[1]
         max_document_len = document.shape[1]
+
+        query = self.word_embedding(query)
+        document = self.word_embedding(document)
 
         query_stack = torch.stack([query] * max_document_len, dim=2)
         # query_stack: (batch, max_query_len, max_document_len, embed)
@@ -44,9 +49,9 @@ class DRMM(nn.Module):
         # interaction: (batch, max_query_len, max_document_len)
 
         # h.shape: (batch, max_query_len, self.nbins)
-        h = torch.emtpy((interaction.shape[0], interaction.shape[1], self.nbins)).to(device)
+        h = torch.zeros((interaction.shape[0], interaction.shape[1], self.nbins)).to(device)
         for b in range(interaction.shape[0]):
-            for q in range(interaction.shape[1]):
+            for q in range(query_len[b]):
                 h[b][q] = torch.histc(interaction[b][q], bins=self.nbins, min=-1, max=1)
         h = torch.log1p(h)
 
