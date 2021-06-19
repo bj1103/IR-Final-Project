@@ -5,8 +5,9 @@ import torch.nn.functional as F
 
 class DRMM(nn.Module):
     def __init__(self, word_embedding: nn.Embedding, embed_dim: int = 300, 
-                 nbins: int = 30) -> None:
+                 nbins: int = 30, device: str = 'cuda') -> None:
         super(DRMM, self).__init__()
+        self.device = device
         self.word_embedding = word_embedding
         self.word_embedding.requires_grad = False
         self.embed_dim = embed_dim
@@ -24,7 +25,7 @@ class DRMM(nn.Module):
         self.gate = nn.Linear(embed_dim, 1)
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, query: Tensor, query_len: list[int], document: Tensor) -> Tensor:
+    def forward(self, query: Tensor, document: Tensor, query_len: list[int]) -> Tensor:
         """Computes relevance score between a query and a document
         Args:
             query: (batch_size, max_query_len) query id sequence
@@ -39,6 +40,8 @@ class DRMM(nn.Module):
 
         query = self.word_embedding(query)
         document = self.word_embedding(document)
+        print(query.shape)
+        print(document.shape)
 
         query_stack = torch.stack([query] * max_document_len, dim=2)
         # query_stack: (batch, max_query_len, max_document_len, embed)
@@ -49,7 +52,7 @@ class DRMM(nn.Module):
         # interaction: (batch, max_query_len, max_document_len)
 
         # h.shape: (batch, max_query_len, self.nbins)
-        h = torch.zeros((interaction.shape[0], interaction.shape[1], self.nbins)).to(device)
+        h = torch.zeros((interaction.shape[0], interaction.shape[1], self.nbins)).to(self.device)
         for b in range(interaction.shape[0]):
             for q in range(query_len[b]):
                 h[b][q] = torch.histc(interaction[b][q], bins=self.nbins, min=-1, max=1)
