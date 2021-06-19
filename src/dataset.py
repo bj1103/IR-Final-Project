@@ -80,10 +80,10 @@ class DRMMDataset(Dataset):
 def collate_batch(batch):
     q, p, n = zip(*batch)
     batch_size = len(batch)
+    l = torch.tensor([q_vec.shape[0] for q_vec in q])
     q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
     p = torch.reshape(torch.nn.utils.rnn.pad_sequence(p), (batch_size, -1))
     n = torch.reshape(torch.nn.utils.rnn.pad_sequence(n), (batch_size, -1))
-    l = q[0].shape[0]
     return q, p, n, l
 
 if __name__ == '__main__':
