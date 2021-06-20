@@ -100,6 +100,53 @@ def collate_batch(batch):
     idf = torch.reshape(torch.nn.utils.rnn.pad_sequence(idf), (batch_size, -1))
     return q, p, n, l, idf
 
+class rerankDataset(Dataset):
+    def __init__(self, ranking_file, topics_file, docs_file, word_model=None, use_tag=["title", "description"]):
+        self.use_tag = use_tag
+        self.translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
+        if word_model is None:
+            word_model = api.load('glove-twitter-25')
+        self.word2id = word_model.key_to_index
+
+        with open(ranking_file) as f_qrel:
+            self.rank_list = json.load(f_qrel)
+        with open(topics_file) as f_topic:
+            self.topics = json.load(f_topic)
+        with open(docs_file) as f_docs:
+            self.docs = json.load(f_docs)
+        
+        self.data = list()
+        for qid in self.rank_list:
+            for doc in self.rank_list[qid]:
+                self.data.append((qid, doc))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        qid, doc = self.data[index]
+        query = ''
+        for tag in self.use_tag:
+            query += self.topics[qid][tag]
+            query += ' '
+        query = self.convert_sentence(query.lower())
+
+        doc_content = self.convert_sentence(self.docs[doc].lower())
+        
+        return query, doc_content, qid, doc
+
+    def convert_sentence(self, s):
+        vec = list()
+        for word in s.split():
+            # remove puctuation
+            word = word.translate(str.maketrans(string.punctuation, ' '*len(string.punctuation))).strip().split()
+            for w in word:
+                try:
+                    vec.append(self.word2id[w])
+                except:
+                    continue
+        return torch.tensor(vec)
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='dataset')
@@ -111,5 +158,5 @@ if __name__ == '__main__':
     print('Load data done')
     loader = DataLoader(test, batch_size=2, shuffle=False, collate_fn=collate_batch)
     for q, p, n, l, idf in loader:
-        print(l, idf,  sep='\n')
+        print(l, idf, sep='\n')
         input()
