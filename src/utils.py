@@ -21,15 +21,16 @@ def compute_MAP(prediction_file: str, qrels_file: str) -> float:
         doc_num = len(prediction[topic])
         prev_precision = 0
         now_hit_num = hit_num
+        tmp_MAP = 0
         for index, document in enumerate(prediction[topic][::-1]):
             try:
                 if qrels[topic]['document'][document] == 1:
                     prev_precision = max(prev_precision, now_hit_num / (doc_num - index))
                     now_hit_num -= 1
-                    MAP += prev_precision
+                    tmp_MAP += prev_precision
             except KeyError:
                 continue
-        MAP /= qrels[topic]['relevant']
+        MAP += tmp_MAP / qrels[topic]['relevant']
     MAP /= q_cnt
     return MAP
 
