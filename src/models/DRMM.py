@@ -20,7 +20,7 @@ class DRMM(nn.Module):
         self.gate = nn.Linear(embed_dim, 1)
         self.softmax = nn.Softmax(dim=1)
 
-    def forward(self, query: Tensor, document: Tensor, query_len: list[int]) -> Tensor:
+    def forward(self, query: Tensor, document: Tensor, query_len: list[int], query_mask: Tensor) -> Tensor:
         """Computes relevance score between a query and a document
         Args:
             query: (batch_size, max_query_len) query id sequence
@@ -49,6 +49,7 @@ class DRMM(nn.Module):
         z = self.ffn(h).squeeze(-1)
         # g.shape: (batch, max_query_len)
         g = self.gate(query).squeeze(-1)
+        g *= query_mask
         g = self.softmax(g)
 
         scores = torch.sum(z * g, dim=1)

@@ -15,19 +15,22 @@ def loss_fn(scores_pos: Tensor, scores_neg: Tensor, device: str) -> Tensor:
     return torch.sum(torch.max(z, 1.0 - scores_pos + scores_neg))
 
 def model_fn(batch, word_embedding, model, device):
-    query, pos_doc, neg_doc, query_len = batch
-    query, pos_doc, neg_doc = query.to(device), pos_doc.to(device), neg_doc.to(device)
+    query, pos_doc, neg_doc, query_len, q_idf = batch
+    query, pos_doc, neg_doc, q_idf = query.to(device), pos_doc.to(device), neg_doc.to(device), q_idf.to(device)
+    query_mask = (query != 0)
     query = word_embedding(query)
     pos_doc = word_embedding(pos_doc)
     neg_doc = word_embedding(neg_doc)
-    scores_pos = drmm_model(query, pos_doc, query_len)
-    scores_neg = drmm_model(query, neg_doc, query_len)
+    scores_pos = drmm_model(query, pos_doc, query_len, query_mask)
+    scores_neg = drmm_model(query, neg_doc, query_len, query_mask)
     loss = loss_fn(scores_pos, scores_neg, device)
-    return loss
+    acc = len(torch.where(scores_pos > scores_neg)[0])
+    return loss, acc
 
 def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size, device):
     drmm_model.eval()
     running_loss = 0.0
+    running_acc = 0.0
     pbar = tqdm(total=valid_num, ncols=0, desc='Valid', unit=' step')
     for i in range(valid_num):
         try:
@@ -36,15 +39,17 @@ def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size,
             iterator = iter(dataloader)
             batch = next(iterator)
         with torch.no_grad():
-            loss = model_fn(batch, word_embedding, model, device)
+            loss, acc = model_fn(batch, word_embedding, model, device)
             running_loss += (loss.item() / batch_size)
+            running_acc += (acc / batch_size)
         pbar.update()
         pbar.set_postfix(
             loss=f'{running_loss / (i+1):.4f}',
+            acc=f'{running_acc / (i+1):.4f}',
         )
     pbar.close()
     drmm_model.train()
-    return running_loss / valid_num
+    return running_loss / valid_num, running_acc / valid_num
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
@@ -52,9 +57,9 @@ if __name__ == '__main__':
     parser.add_argument('topics_file', type=str, help="Topic file in json format")
     parser.add_argument('docs_dir', type=str, help="Doc dir in json format")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
-    parser.add_argument('--valid_steps', type=int, default=5000, help="Steps to validation")
-    parser.add_argument('--save_steps', type=int, default=5000, help="Steps to save best model")
-    parser.add_argument('--valid_num', type=int, default=250, help="Number of steps doing validation")
+    parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
+    parser.add_argument('--save_steps', type=int, default=1000, help="Steps to save best model")
+    parser.add_argument('--valid_num', type=int, default=200, help="Number of steps doing validation")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
     parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
     parser.add_argument('--nbins', type=int, default=30, help="Number of bins for histogram")
@@ -82,6 +87,7 @@ if __name__ == '__main__':
         batch_size=argvs.batch_size, 
         shuffle=True, 
         collate_fn=collate_batch,
+        num_workers=4,
     )
     test_set = DRMMDataset(
         argvs.qrels_file, 
@@ -95,6 +101,7 @@ if __name__ == '__main__':
         batch_size=argvs.batch_size, 
         shuffle=False, 
         collate_fn=collate_batch,
+        num_workers=4,
     )
     print(f'Train dataset with size {len(train_set)}')
     print(f'Test dataset with size {len(test_set)}')
@@ -113,8 +120,8 @@ if __name__ == '__main__':
     valid_num = argvs.valid_num
     pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
     step = 0
-    min_loss = float('inf')
-    prev_loss = float('inf')
+    best_acc = 0.0
+    prev_acc = 0.0
     best_state_dict = None
 
     while True:
@@ -124,7 +131,7 @@ if __name__ == '__main__':
             train_iterator = iter(train_loader)
             batch = next(train_iterator)
 
-        loss = model_fn(batch, word_embedding, drmm_model, device)
+        loss, acc = model_fn(batch, word_embedding, drmm_model, device)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
@@ -132,26 +139,27 @@ if __name__ == '__main__':
         pbar.update()
         pbar.set_postfix(
             loss=f'{loss.item() / argvs.batch_size:.4f}',
+            acc=f'{acc / argvs.batch_size:.4f}',
             step=step + 1,
         )
 
         if (step + 1) % valid_steps == 0:
             # do validation
             pbar.close()
-            valid_loss = valid_fn(test_loader, test_iterator, word_embedding, 
+            valid_loss, valid_acc = valid_fn(test_loader, test_iterator, word_embedding, 
                 drmm_model, valid_num, argvs.batch_size, device)
 
-            if valid_loss < min_loss:
-                min_loss = valid_loss
+            if valid_acc > best_acc:
+                best_acc = valid_acc
                 best_state_dict = drmm_model.state_dict()
 
             pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
 
         if (step + 1) % save_steps == 0:
-            if min_loss < prev_loss: 
+            if best_acc > prev_acc: 
                 torch.save(best_state_dict, argvs.model_path)
-                prev_loss = min_loss
-                pbar.write(f'Step {step+1}, best model saved with loss {min_loss:.4f}')
+                prev_acc = best_acc
+                pbar.write(f'Step {step+1}, best model saved with accuracy {best_acc:.4f}')
 
         step += 1
 
