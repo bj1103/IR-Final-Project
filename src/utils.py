@@ -6,21 +6,31 @@ def compute_MAP(prediction_file: str, qrels_file: str) -> float:
     qrels = json.load(open(qrels_file))
     prediction = json.load(open(prediction_file))
     MAP = 0
+    q_cnt = 0
     for topic in prediction:
+        if topic not in qrels:
+            continue
+        q_cnt += 1
         hit_num = 0
         for document in prediction[topic]:
-            if qrels[topic]['document'][document] == 1:
-                hit_num += 1
+            try:
+                if qrels[topic]['document'][document] == 1:
+                    hit_num += 1
+            except KeyError:
+                continue
         doc_num = len(prediction[topic])
         prev_precision = 0
         now_hit_num = hit_num
         for index, document in enumerate(prediction[topic][::-1]):
-            if qrels[topic]['document'][document] == 1:
-                prev_precision = max(prev_precision, now_hit_num / (doc_num - index))
-                now_hit_num -= 1
-                MAP += prev_precision
+            try:
+                if qrels[topic]['document'][document] == 1:
+                    prev_precision = max(prev_precision, now_hit_num / (doc_num - index))
+                    now_hit_num -= 1
+                    MAP += prev_precision
+            except KeyError:
+                continue
         MAP /= qrels[topic]['relevant']
-    MAP /= len(prediction)
+    MAP /= q_cnt
     return MAP
 
 if __name__ == '__main__':

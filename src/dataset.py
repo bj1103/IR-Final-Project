@@ -17,7 +17,7 @@ class DRMMDataset(Dataset):
         self.docs_dir = Path(docs_dir)
 
         if word_model is None:
-            word_model = api.load('word2vec-google-news-300')
+            word_model = api.load('glove-twitter-25')
         self.word2id = word_model.key_to_index
 
         with open(qrels_file) as f_qrel:
@@ -49,23 +49,23 @@ class DRMMDataset(Dataset):
 
     def __getitem__(self, index):
         qid = str(self.qids[index])
-        query = ""
+        query = ''
         for tag in self.use_tag:
             query += self.topics[qid][tag]
             query += ' '
-        query = self.convertSentence(query)
+        query = self.convert_sentence(query.lower())
 
         pos_doc = random.choice(self.pos_docs[qid])
         neg_doc = random.choice(self.neg_docs[qid])
 
         with open(self.docs_dir / pos_doc) as f_pos_doc:
-            pos_doc_content = self.convertSentence(f_pos_doc.read())
+            pos_doc_content = self.convert_sentence(f_pos_doc.read().lower())
         with open(self.docs_dir / neg_doc) as f_neg_doc:
-            neg_doc_content = self.convertSentence(f_neg_doc.read())
+            neg_doc_content = self.convert_sentence(f_neg_doc.read().lower())
         
         return query, pos_doc_content, neg_doc_content
 
-    def convertSentence(self, s):
+    def convert_sentence(self, s):
         vec = list()
         for word in s.split():
             # remove puctuation
@@ -91,10 +91,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
     parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_dir', type=str, help="Doc dir in json format")
+    parser.add_argument('docs_dir', type=str, help="Doc dir")
     argvs = parser.parse_args()
     test = DRMMDataset(argvs.qrels_file, argvs.topics_file, argvs.docs_dir)
     loader = DataLoader(test, batch_size=2, shuffle=False, collate_fn=collate_batch)
     for q, p, n, l in loader:
-        print(q, p, n, l, sep='\n')
-        break
+        print(l, sep='\n')
+        input()
