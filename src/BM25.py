@@ -5,22 +5,28 @@ from tqdm import tqdm
 import json
 import string
 # word = word.translate().strip().split()
-def load_documents(docs_file: str, docs_dir: str, translator):
+def load_documents(cor: str, docs_dir: str, translator):
     docs_list = list()
     corpus = list()
-    with open(docs_file) as f_docs:
-        print('Loading documents...')
-        for doc in f_docs:
-            doc = doc.strip()
-            doc_path = Path(docs_dir) / doc
-            with open(doc_path) as f_doc:
-                corpus_tokens = f_doc.read().translate(translator).strip().lower().split()
-                corpus.append([token.strip() for token in corpus_tokens if token.strip() != ''])
-            docs_list.append(doc)
+    # with open(docs_file) as f_docs:
+    #     print('Loading documents...')
+    #     for doc in f_docs:
+    #         doc = doc.strip()
+    #         doc_path = Path(docs_dir) / doc
+    #         with open(doc_path) as f_doc:
+    #             corpus_tokens = f_doc.read().translate(translator).strip().lower().split()
+    #             corpus.append([token.strip() for token in corpus_tokens if token.strip() != ''])
+    #         docs_list.append(doc)
+    print('Loading documents...')
+    for doc in cor:
+        corpus_tokens = cor[doc].translate(translator).strip().lower().split()
+        corpus.append([token.strip() for token in corpus_tokens if token.strip() != ''])
+        docs_list.append(doc)
     return docs_list, corpus
     
-def compute_score(docs_file: str, topics_file: str, docs_dir: str, prediction_file: str, translator, rank_to_k=200, use_tag=["title", "description"]):
-    docs_list, tokenized_corpus = load_documents(docs_file, docs_dir, translator)
+def compute_score(docs_file: str, topics_file: str, docs_dir: str, prediction_file: str, translator, rank_to_k=2000, use_tag=["title", "description"]):
+    cor = json.load(open(docs_file))
+    docs_list, tokenized_corpus = load_documents(cor, docs_dir, translator)
 
     bm25 = BM25Okapi(tokenized_corpus)
     topics = json.load(open(topics_file))
