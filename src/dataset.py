@@ -73,7 +73,7 @@ class DRMMDataset(Dataset):
 
         pos_doc_content, _ = self.convert_sentence(self.docs[pos_doc].lower())
         neg_doc_content, _ = self.convert_sentence(self.docs[neg_doc].lower())
-        
+
         return query, pos_doc_content, neg_doc_content, q_idf
 
     def convert_sentence(self, s):
@@ -92,7 +92,6 @@ class DRMMDataset(Dataset):
 
 def collate_batch(batch):
     q, p, n, idf = zip(*batch)
-    batch_size = len(batch)
     q_len = torch.tensor([q_vec.shape[0] for q_vec in q])
     p_len = torch.tensor([p_vec.shape[0] for p_vec in p])
     n_len = torch.tensor([n_vec.shape[0] for n_vec in n])
@@ -116,7 +115,7 @@ class rerankDataset(Dataset):
             self.topics = json.load(f_topic)
         with open(docs_file) as f_docs:
             self.docs = json.load(f_docs)
-        
+
         self.data = list()
         for qid in self.rank_list:
             for id, doc in enumerate(self.rank_list[qid]):
@@ -134,7 +133,7 @@ class rerankDataset(Dataset):
         query = self.convert_sentence(query.lower())
 
         doc_content = self.convert_sentence(self.docs[doc].lower())
-        
+
         return query, doc_content, qid, id
 
     def convert_sentence(self, s):

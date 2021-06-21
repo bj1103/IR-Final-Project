@@ -15,14 +15,14 @@ def loss_fn(scores_pos: Tensor, scores_neg: Tensor, device: str) -> Tensor:
     return torch.sum(torch.max(z, 1.0 - scores_pos + scores_neg))
 
 def model_fn(batch, word_embedding, model, device):
-    query, pos_doc, neg_doc, query_len, q_idf = batch
+    query, pos_doc, neg_doc, q_idf = batch
     query, pos_doc, neg_doc, q_idf = query.to(device), pos_doc.to(device), neg_doc.to(device), q_idf.to(device)
-    query_mask = (query != 0)
-    query = word_embedding(query)
-    pos_doc = word_embedding(pos_doc)
-    neg_doc = word_embedding(neg_doc)
-    scores_pos = drmm_model(query, query_len, query_mask, pos_doc)
-    scores_neg = drmm_model(query, query_len, query_mask, neg_doc)
+    # query_mask = (query != 0)
+    # query = word_embedding(query)
+    # pos_doc = word_embedding(pos_doc)
+    # neg_doc = word_embedding(neg_doc)
+    scores_pos = drmm_model(query, pos_doc, q_idf)
+    scores_neg = drmm_model(query, neg_doc, q_idf)
     loss = loss_fn(scores_pos, scores_neg, device)
     acc = len(torch.where(scores_pos > scores_neg)[0])
     return loss, acc
@@ -74,9 +74,6 @@ if __name__ == '__main__':
 
     print('Loading word2vec model...')
     word2vec = api.load('word2vec-google-news-300')
-    embedding_weights = torch.FloatTensor(word2vec.vectors)
-    word_embedding = nn.Embedding.from_pretrained(embedding_weights).to(device)
-    word_embedding.requires_grad = False
 
     train_set = DRMMDataset(
         argvs.qrels_file, 
@@ -111,7 +108,12 @@ if __name__ == '__main__':
     train_iterator = iter(train_loader)
     test_iterator = iter(test_loader)
 
+    embedding_weights = torch.FloatTensor(word2vec.vectors)
+    word_embedding = nn.Embedding.from_pretrained(embedding_weights).to(device)
+    word_embedding.requires_grad = False
+
     drmm_model = DRMM(
+        word_embedding=word_embedding,
         embed_dim=embedding_weights.shape[1], 
         nbins=argvs.nbins,
         device=device,
