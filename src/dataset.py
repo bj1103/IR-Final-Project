@@ -119,14 +119,14 @@ class rerankDataset(Dataset):
         
         self.data = list()
         for qid in self.rank_list:
-            for doc in self.rank_list[qid]:
-                self.data.append((qid, doc))
+            for id, doc in enumerate(self.rank_list[qid]):
+                self.data.append((qid, doc, id))
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, index):
-        qid, doc = self.data[index]
+        qid, doc, id = self.data[index]
         query = ''
         for tag in self.use_tag:
             query += self.topics[qid][tag]
@@ -135,7 +135,7 @@ class rerankDataset(Dataset):
 
         doc_content = self.convert_sentence(self.docs[doc].lower())
         
-        return query, doc_content, qid, doc
+        return query, doc_content, qid, id
 
     def convert_sentence(self, s):
         vec = list()

@@ -58,7 +58,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
     parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_dir', type=str, help="Doc dir in json format")
+    parser.add_argument('docs_dir', type=str, help="Doc dir")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
     parser.add_argument('--save_steps', type=int, default=1000, help="Steps to save best model")
