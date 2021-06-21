@@ -58,7 +58,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
     parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_dir', type=str, help="Doc dir")
+    parser.add_argument('docs_file', type=str, help="Clean document file in json format")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
     parser.add_argument('--save_steps', type=int, default=1000, help="Steps to save best model")
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     train_set = DRMMDataset(
         argvs.qrels_file, 
         argvs.topics_file, 
-        argvs.docs_dir,
+        argvs.docs_file,
         word_model=word2vec,
         mode='train',
     )
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     test_set = DRMMDataset(
         argvs.qrels_file, 
         argvs.topics_file, 
-        argvs.docs_dir,
+        argvs.docs_file,
         word_model=word2vec,
         mode='test',
     )
