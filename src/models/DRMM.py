@@ -18,7 +18,13 @@ class DRMM(nn.Module):
             nn.Tanh(),
         )
         self.gate = nn.Linear(embed_dim, 1)
-        self.softmax = nn.Softmax(dim=1)
+        # self.softmax = nn.Softmax(dim=1)
+
+    def masked_softmax(self, vec: Tensor, mask: Tensor, dim: int = 1, epsilon: float = 1e-5) -> Tensor:
+        exps = torch.exp(vec)
+        masked_exps = exps * mask.float()
+        masked_sums = masked_exps.sum(dim, keepdim=True) + epsilon
+        return (masked_exps / masked_sums)
 
     def forward(self, query: Tensor, document: Tensor, query_len: list[int], query_mask: Tensor) -> Tensor:
         """Computes relevance score between a query and a document
@@ -49,8 +55,8 @@ class DRMM(nn.Module):
         z = self.ffn(h).squeeze(-1)
         # g.shape: (batch, max_query_len)
         g = self.gate(query).squeeze(-1)
-        g *= query_mask
-        g = self.softmax(g)
+        # g = self.softmax(g)
+        g = self.masked_softmax(g, query_mask)
 
         scores = torch.sum(z * g, dim=1)
         return scores
