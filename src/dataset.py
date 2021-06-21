@@ -93,12 +93,14 @@ class DRMMDataset(Dataset):
 def collate_batch(batch):
     q, p, n, idf = zip(*batch)
     batch_size = len(batch)
-    l = torch.tensor([q_vec.shape[0] for q_vec in q])
-    q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
-    p = torch.reshape(torch.nn.utils.rnn.pad_sequence(p), (batch_size, -1))
-    n = torch.reshape(torch.nn.utils.rnn.pad_sequence(n), (batch_size, -1))
-    idf = torch.reshape(torch.nn.utils.rnn.pad_sequence(idf), (batch_size, -1))
-    return q, p, n, l, idf
+    q_len = torch.tensor([q_vec.shape[0] for q_vec in q])
+    p_len = torch.tensor([p_vec.shape[0] for p_vec in p])
+    n_len = torch.tensor([n_vec.shape[0] for n_vec in n])
+    q = torch.nn.utils.rnn.pad_sequence(q).T
+    p = torch.nn.utils.rnn.pad_sequence(p).T
+    n = torch.nn.utils.rnn.pad_sequence(n).T
+    idf = torch.nn.utils.rnn.pad_sequence(idf).T
+    return q, p, n, q_len, p_len, n_len, idf
 
 class rerankDataset(Dataset):
     def __init__(self, ranking_file, topics_file, docs_file, word_model=None, use_tag=["title", "description"]):
@@ -157,6 +159,6 @@ if __name__ == '__main__':
     test = DRMMDataset(argvs.qrels_file, argvs.topics_file, argvs.docs_file)
     print('Load data done')
     loader = DataLoader(test, batch_size=2, shuffle=False, collate_fn=collate_batch)
-    for q, p, n, l, idf in loader:
-        print(l, idf, sep='\n')
+    for q, p, n, ql, pl, nl, idf in loader:
+        print(f'===query===\n{ql}\n{q}\n===pos_doc===\n{pl}\n{p}\n===neg_doc===\n{nl}\n{n}\n{idf}')
         input()
