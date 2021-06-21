@@ -133,7 +133,7 @@ class rerankDataset(Dataset):
 
         doc_content = self.convert_sentence(self.docs[doc].lower())
         
-        return query, doc_content, qid, doc
+        return query, doc_content, qid, index
 
     def convert_sentence(self, s):
         vec = list()

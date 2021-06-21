@@ -14,12 +14,12 @@ from dataset import rerankDataset
 from models.DRMM import DRMM
 
 def collate_batch(batch):
-    q, d, qids, docs = zip(*batch)
+    q, d, qids, indexs = zip(*batch)
     batch_size = len(batch)
     l = torch.tensor([q_vec.shape[0] for q_vec in q])
     q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
     d = torch.reshape(torch.nn.utils.rnn.pad_sequence(d), (batch_size, -1))
-    return q, d, l, qids, docs
+    return q, d, l, qids, indexs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
@@ -65,24 +65,28 @@ if __name__ == '__main__':
         device=device,
     ).to(device)
 
-    ckpt = torch.load(argvs.model_path, map_location=torch.device('cpu'))
+    prediction = dict()
+    for qid in test_set.rank_list:
+        prediction[qid] = [[doc, 0] for doc in test_set.rank_list[qid]]
+            
+    ckpt = torch.load(argvs.model_path, map_location=torch.device(device))
     model.load_state_dict(ckpt)
     model.eval()
-    prediction = dict()
-    for query, document, query_len, qids, docs in tqdm(test_loader):
+    for query, document, query_len, qids, indexs in tqdm(test_loader):
         query, document = query.to(device), document.to(device)
         query_mask = (query != 0)
         query = word_embedding(query)
         document = word_embedding(document)
         scores = model(query, document, query_len, query_mask)
-        for index, (qid, doc) in enumerate(zip(qids, docs)):
-            if qid not in prediction:
-                prediction[qid] = list()
-            prediction[qid].append((doc, scores[index]))
-    
+        scores = scores.to('cpu')
+        for batch_id, (index, qid) in enumerate(zip(indexs, qids)):
+            prediction[qid][index][1] = scores[batch_id]
+    with open('temp.json', 'w') as out:
+        print(json.dumps(prediction, indent=4), file=out)
+        
     for qid in prediction:
         tmp = sorted(prediction[qid], key=lambda pair: pair[1])[::-1]
         prediction[qid] = [pair[0] for pair in tmp]
     
-    with open(argvs.prediction_file) as out:
+    with open(argvs.prediction_file, 'w') as out:
         print(json.dumps(prediction, indent=4), file=out)
