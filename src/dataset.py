@@ -93,12 +93,14 @@ class DRMMDataset(Dataset):
 def collate_batch(batch):
     q, p, n, idf = zip(*batch)
     batch_size = len(batch)
-    l = torch.tensor([q_vec.shape[0] for q_vec in q])
+    # q_l = torch.tensor([q_vec.shape[0] for q_vec in q])
+    # pos_doc_l = torch.tensor([d_vec.shape[0] for d_vec in p])
+    # neg_doc_l = torch.tensor([d_vec.shape[0] for d_vec in n])
     q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
     p = torch.reshape(torch.nn.utils.rnn.pad_sequence(p), (batch_size, -1))
     n = torch.reshape(torch.nn.utils.rnn.pad_sequence(n), (batch_size, -1))
     idf = torch.reshape(torch.nn.utils.rnn.pad_sequence(idf), (batch_size, -1))
-    return q, p, n, l, idf
+    return q, p, n, idf
 
 class rerankDataset(Dataset):
     def __init__(self, ranking_file, topics_file, docs_file, word_model=None, use_tag=["title", "description"]):
