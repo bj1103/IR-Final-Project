@@ -79,8 +79,8 @@ if __name__ == '__main__':
         document = word_embedding(document)
         scores = model(query, document, query_len, query_mask)
         scores = scores.to('cpu')
-        for batch_id, (index, qid) in enumerate(zip(indexs, qids)):
-            prediction[qid][index][1] = scores[batch_id]
+        for batch_id, (qid, index) in enumerate(zip(qids, indexs)):
+            prediction[qid][index][1] = scores[batch_id].item()
     with open('temp.json', 'w') as out:
         print(json.dumps(prediction, indent=4), file=out)
         
