@@ -21,8 +21,8 @@ def model_fn(batch, word_embedding, model, device):
     query = word_embedding(query)
     pos_doc = word_embedding(pos_doc)
     neg_doc = word_embedding(neg_doc)
-    scores_pos = drmm_model(query, pos_doc, query_len, query_mask)
-    scores_neg = drmm_model(query, neg_doc, query_len, query_mask)
+    scores_pos = drmm_model(query, query_len, query_mask, pos_doc)
+    scores_neg = drmm_model(query, query_len, query_mask, neg_doc)
     loss = loss_fn(scores_pos, scores_neg, device)
     acc = len(torch.where(scores_pos > scores_neg)[0])
     return loss, acc
@@ -43,13 +43,16 @@ def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size,
             running_loss += (loss.item() / batch_size)
             running_acc += (acc / batch_size)
         pbar.update()
-        pbar.set_postfix(
-            loss=f'{running_loss / (i+1):.4f}',
-            acc=f'{running_acc / (i+1):.4f}',
-        )
+    running_loss /= valid_num
+    running_acc /= valid_num
+    pbar.set_postfix(
+        loss=f'{running_loss:.4f}',
+        acc=f'{running_acc:.4f}',
+    )
+    # pbar.update(f'loss={running_loss:.4f}, acc={running_acc:.4f}')
     pbar.close()
     drmm_model.train()
-    return running_loss / valid_num, running_acc / valid_num
+    return running_loss, running_acc
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
@@ -122,6 +125,8 @@ if __name__ == '__main__':
     step = 0
     best_acc = 0.0
     prev_acc = 0.0
+    running_acc = 0.0
+    running_loss = 0.0
     best_state_dict = None
 
     while True:
@@ -132,20 +137,28 @@ if __name__ == '__main__':
             batch = next(train_iterator)
 
         loss, acc = model_fn(batch, word_embedding, drmm_model, device)
+        running_acc += acc
+        running_loss += loss.item()
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
 
         pbar.update()
         pbar.set_postfix(
-            loss=f'{loss.item() / argvs.batch_size:.4f}',
-            acc=f'{acc / argvs.batch_size:.4f}',
             step=step + 1,
         )
 
         if (step + 1) % valid_steps == 0:
             # do validation
+            pbar.set_postfix(
+                loss=f'{running_loss / argvs.valid_steps / argvs.batch_size:.4f}',
+                acc=f'{running_acc / argvs.valid_steps / argvs.batch_size:.4f}',
+            )
+            # pbar.write(f'loss={running_loss / argvs.valid_steps / argvs.batch_size:.4f}, acc={running_acc / argvs.valid_steps / argvs.batch_size:.4f}')
             pbar.close()
+            running_loss = 0.0
+            running_acc = 0.0
+            
             valid_loss, valid_acc = valid_fn(test_loader, test_iterator, word_embedding, 
                 drmm_model, valid_num, argvs.batch_size, device)
 
