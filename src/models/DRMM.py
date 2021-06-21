@@ -11,22 +11,22 @@ class DRMM(nn.Module):
         self.nbins = nbins
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
-            nn.Linear(nbins, nbins),
+            nn.Linear(nbins, 5),
             nn.Tanh(),
-            nn.Linear(nbins, 1),
+            nn.Linear(5, 1),
             nn.Tanh(),
+            nn.Linear(1, 1),
+            nn.Tanh(),
+        )
+        self.gate = nn.Sequential(
+            nn.Linear(embed_dim, 1),
+            nn.Tanh(),
+            # nn.Linear(embed_dim, 1),
+            # nn.Tanh(),
             # nn.Linear(1, 1),
             # nn.Tanh(),
         )
-        # self.gate = nn.Sequential(
-        #     nn.Linear(embed_dim, embed_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(embed_dim, 1),
-        #     nn.Tanh(),
-        #     # nn.Linear(1, 1),
-        #     # nn.Tanh(),
-        # )
-        self.gate = nn.Linear(1, 1)
+        # self.gate = nn.Linear(1, 1)
         # self.softmax = nn.Softmax(dim=1)
 
     def masked_softmax(self, vec: Tensor, mask: Tensor, dim: int = 1, epsilon: float = 1e-5) -> Tensor:
@@ -70,7 +70,7 @@ class DRMM(nn.Module):
         z = self.ffn(h).squeeze(-1)
 
         # g.shape: (batch, max_query_len)
-        g = self.gate(q_idf.unsqueeze(-1)).squeeze(-1)
+        g = self.gate(query_embedding).squeeze(-1)
         # g = self.softmax(g)
         g = self.masked_softmax(g, query_mask)
 
