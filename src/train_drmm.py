@@ -21,8 +21,8 @@ def model_fn(batch, word_embedding, model, device):
     query = word_embedding(query)
     pos_doc = word_embedding(pos_doc)
     neg_doc = word_embedding(neg_doc)
-    scores_pos = drmm_model(query, pos_doc, query_len, query_mask)
-    scores_neg = drmm_model(query, neg_doc, query_len, query_mask)
+    scores_pos = drmm_model(query, query_len, query_mask, pos_doc)
+    scores_neg = drmm_model(query, query_len, query_mask, neg_doc)
     loss = loss_fn(scores_pos, scores_neg, device)
     acc = len(torch.where(scores_pos > scores_neg)[0])
     return loss, acc

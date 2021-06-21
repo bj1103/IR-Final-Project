@@ -26,12 +26,15 @@ class DRMM(nn.Module):
         masked_sums = masked_exps.sum(dim, keepdim=True) + epsilon
         return (masked_exps / masked_sums)
 
-    def forward(self, query: Tensor, document: Tensor, query_len: list[int], query_mask: Tensor) -> Tensor:
+    def forward(self, query: Tensor, query_len: list[int], query_mask: Tensor, document: Tensor) -> Tensor:
         """Computes relevance score between a query and a document
         Args:
             query: (batch_size, max_query_len) query id sequence
-            query_list: [batch_size] query length for each query
+            query_len: [batch_size] query length for each query
+            query_mask: [batch_size, max_query_len] mask[i][j] = 0 if query[i][j] is <PAD>, 
+                otherwise mask[i][j] = 1
             document: (batch_size, max_document_len) document id sequence
+            document_len: [batch_size] document length for each document
         Returns:
             scores: (batch_size) relevance scores
         """
