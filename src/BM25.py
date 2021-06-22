@@ -5,7 +5,7 @@ from tqdm import tqdm
 import json
 import string
 # word = word.translate().strip().split()
-def load_documents(cor: str, docs_dir: str, translator):
+def load_documents(cor: str, translator):
     docs_list = list()
     corpus = list()
     # with open(docs_file) as f_docs:
@@ -24,14 +24,24 @@ def load_documents(cor: str, docs_dir: str, translator):
         docs_list.append(doc)
     return docs_list, corpus
     
-def compute_score(docs_file: str, topics_file: str, docs_dir: str, prediction_file: str, translator, rank_to_k=2000, use_tag=["title", "description"]):
-    cor = json.load(open(docs_file))
-    docs_list, tokenized_corpus = load_documents(cor, docs_dir, translator)
+def compute_score(docs_file: str, topics_file: str, qrels_file: str, prediction_file: str, translator, rank_to_k=2000, use_tag=["title", "description"]):
+    with open(docs_file) as f:
+        cor = json.load(f)
+    with open(topics_file) as f:
+        topics = json.load(f)
+    with open(qrels_file) as f:
+        qrels = json.load(f)
+
+    docs_list, tokenized_corpus = load_documents(cor, translator)
+
+    total_qids = list(qrels.keys())
+    total_qids = np.array([int(qid) for qid in total_qids])
+    indexs = list(range(0, len(total_qids), 5))
+    qids = [str(qid) for qid in total_qids[indexs]]
 
     bm25 = BM25Okapi(tokenized_corpus)
-    topics = json.load(open(topics_file))
     rank_list = dict()
-    for qid in tqdm(topics):
+    for qid in tqdm(qids):
         query = ''
         for tag in use_tag:
             query += topics[qid][tag]
@@ -54,9 +64,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Okapi score')
     parser.add_argument('docs_file', type=str, help="docs list in txt file")
     parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_dir', type=str, help="Doc dir")
+    parser.add_argument('qrels_file', type=str, help="Qrels file in json format")
     parser.add_argument('prediction_file', type=str, help="Output the prediction")
+    parser.add_argument('--top_k', type=int, default=2000, help="Output the prediction")
     argvs = parser.parse_args()
 
     translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
-    compute_score(argvs.docs_file, argvs.topics_file, argvs.docs_dir, argvs.prediction_file, translator)
+    compute_score(argvs.docs_file, argvs.topics_file, argvs.qrels_file, argvs.prediction_file, translator, rank_to_k=argvs.top_k)
