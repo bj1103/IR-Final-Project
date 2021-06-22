@@ -116,8 +116,21 @@ class rerankDataset(Dataset):
         with open(docs_file) as f_docs:
             self.docs = json.load(f_docs)
 
+        total_qids = list(self.rank_list.keys())
+        total_qids = np.array([int(qid) for qid in total_qids])
+        indexs = list(range(0, len(total_qids), 5))
+        self.qids = [str(qid) for qid in total_qids[indexs]]
+
+        corpus = list()
+        for doc in self.docs:
+            corpus_tokens = self.docs[doc].translate(self.translator).strip().lower().split()
+            corpus.append([token.strip() for token in corpus_tokens if token.strip() != ''])
+        self.idf = BM25Okapi(corpus).idf
+        print('Done')
+        del corpus, corpus_tokens
+
         self.data = list()
-        for qid in self.rank_list:
+        for qid in self.qids:
             for id, doc in enumerate(self.rank_list[qid]):
                 self.data.append((qid, doc, id))
 
@@ -130,23 +143,25 @@ class rerankDataset(Dataset):
         for tag in self.use_tag:
             query += self.topics[qid][tag]
             query += ' '
-        query = self.convert_sentence(query.lower())
+        query, q_idf = self.convert_sentence(query.lower())
 
-        doc_content = self.convert_sentence(self.docs[doc].lower())
+        doc_content, _ = self.convert_sentence(self.docs[doc].lower())
 
-        return query, doc_content, qid, id
+        return query, doc_content, q_idf, qid, id
 
     def convert_sentence(self, s):
         vec = list()
+        w_idf = list()
         for word in s.split():
             # remove puctuation
             word = word.translate(str.maketrans(string.punctuation, ' '*len(string.punctuation))).strip().split()
             for w in word:
                 try:
                     vec.append(self.word2id[w])
+                    w_idf.append(self.idf[w])
                 except:
                     continue
-        return torch.tensor(vec)
+        return torch.tensor(vec), torch.tensor(w_idf)
 
 if __name__ == '__main__':
     import argparse

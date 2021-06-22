@@ -14,12 +14,11 @@ from dataset import rerankDataset
 from models.DRMM import DRMM
 
 def collate_batch(batch):
-    q, d, qids, indexs = zip(*batch)
-    batch_size = len(batch)
-    l = torch.tensor([q_vec.shape[0] for q_vec in q])
-    q = torch.reshape(torch.nn.utils.rnn.pad_sequence(q), (batch_size, -1))
-    d = torch.reshape(torch.nn.utils.rnn.pad_sequence(d), (batch_size, -1))
-    return q, d, l, qids, indexs
+    q, d, q_idf, qids, indexs = zip(*batch)
+    q = torch.nn.utils.rnn.pad_sequence(q).T
+    d = torch.nn.utils.rnn.pad_sequence(d).T
+    q_idf = torch.nn.utils.rnn.pad_sequence(q_idf).T
+    return q, d, q_idf, qids, indexs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
@@ -46,47 +45,45 @@ if __name__ == '__main__':
     word_embedding.requires_grad = False
     print('done')
     test_set = rerankDataset(
-        argvs.ranking_file, 
-        argvs.topics_file, 
+        argvs.ranking_file,
+        argvs.topics_file,
         argvs.docs_file,
         word_model=word2vec,
     )
     test_loader = DataLoader(
         test_set,
-        batch_size=argvs.batch_size, 
-        shuffle=False, 
+        batch_size=argvs.batch_size,
+        shuffle=False,
         collate_fn=collate_batch,
         num_workers=4,
     )
 
     model = DRMM(
-        embed_dim=embedding_weights.shape[1], 
+        word_embedding=word_embedding,
+        embed_dim=embedding_weights.shape[1],
         nbins=argvs.nbins,
         device=device,
     ).to(device)
 
     prediction = dict()
-    for qid in test_set.rank_list:
+    for qid in test_set.qids:
         prediction[qid] = [[doc, 0] for doc in test_set.rank_list[qid]]
-            
+
     ckpt = torch.load(argvs.model_path, map_location=torch.device(device))
     model.load_state_dict(ckpt)
     model.eval()
-    for query, document, query_len, qids, indexs in tqdm(test_loader):
-        query, document = query.to(device), document.to(device)
-        query_mask = (query != 0)
-        query = word_embedding(query)
-        document = word_embedding(document)
-        scores = model(query, document, query_len, query_mask)
+    for query, document, q_idf, qids, indexs in tqdm(test_loader):
+        query, document, q_idf = query.to(device), document.to(device), q_idf.to(device)
+        scores = model(query, document, q_idf)
         scores = scores.to('cpu')
         for batch_id, (qid, index) in enumerate(zip(qids, indexs)):
             prediction[qid][index][1] = scores[batch_id].item()
     with open('temp.json', 'w') as out:
         print(json.dumps(prediction, indent=4), file=out)
-        
+
     for qid in prediction:
         tmp = sorted(prediction[qid], key=lambda pair: pair[1])[::-1]
         prediction[qid] = [pair[0] for pair in tmp]
-    
+
     with open(argvs.prediction_file, 'w') as out:
         print(json.dumps(prediction, indent=4), file=out)
