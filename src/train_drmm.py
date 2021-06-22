@@ -17,12 +17,18 @@ def loss_fn(scores_pos: Tensor, scores_neg: Tensor, device: str) -> Tensor:
 def model_fn(batch, word_embedding, model, device):
     query, pos_doc, neg_doc, q_idf = batch
     query, pos_doc, neg_doc, q_idf = query.to(device), pos_doc.to(device), neg_doc.to(device), q_idf.to(device)
-    # query_mask = (query != 0)
-    # query = word_embedding(query)
-    # pos_doc = word_embedding(pos_doc)
-    # neg_doc = word_embedding(neg_doc)
-    scores_pos = drmm_model(query, pos_doc, q_idf)
-    scores_neg = drmm_model(query, neg_doc, q_idf)
+    
+    query_mask = (query > 0).float()
+    pos_doc_mask = (pos_doc > 0).float()
+    neg_doc_mask = (neg_doc > 0).float()
+
+    query = word_embedding(query) * query_mask.unsqueeze(-1)
+    pos_doc = word_embedding(pos_doc) * pos_doc_mask.unsqueeze(-1)
+    neg_doc = word_embedding(neg_doc) * neg_doc_mask.unsqueeze(-1)
+
+    scores_pos = drmm_model(query, query_mask, pos_doc, pos_doc_mask, q_idf)
+    scores_neg = drmm_model(query, query_mask, neg_doc, neg_doc_mask, q_idf)
+
     loss = loss_fn(scores_pos, scores_neg, device)
     acc = len(torch.where(scores_pos > scores_neg)[0])
     return loss, acc
@@ -62,7 +68,6 @@ if __name__ == '__main__':
     parser.add_argument('folds_file', type=str, help="Folds file in json format")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
-    parser.add_argument('--save_steps', type=int, default=1000, help="Steps to save best model")
     parser.add_argument('--valid_num', type=int, default=200, help="Number of steps doing validation")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
     parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
@@ -116,7 +121,6 @@ if __name__ == '__main__':
     word_embedding.requires_grad = False
 
     drmm_model = DRMM(
-        word_embedding=word_embedding,
         embed_dim=embedding_weights.shape[1], 
         nbins=argvs.nbins,
         device=device,
@@ -124,7 +128,6 @@ if __name__ == '__main__':
     optimizer = AdamW(drmm_model.parameters(), argvs.lr)
 
     valid_steps = argvs.valid_steps
-    save_steps = argvs.save_steps
     valid_num = argvs.valid_num
     pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
     step = 0
@@ -169,15 +172,10 @@ if __name__ == '__main__':
 
             if valid_acc > best_acc:
                 best_acc = valid_acc
-                best_state_dict = drmm_model.state_dict()
-
-            pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
-
-        if (step + 1) % save_steps == 0:
-            if best_acc > prev_acc: 
-                torch.save(best_state_dict, argvs.model_path)
-                prev_acc = best_acc
+                torch.save(drmm_model.state_dict(), argvs.model_path)
                 pbar.write(f'Step {step+1}, best model saved with accuracy {best_acc:.4f}')
+            
+            pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
 
         step += 1
 
