@@ -26,6 +26,7 @@ if __name__ == '__main__':
     parser.add_argument('topics_file', type=str, help="Topic file in json format")
     parser.add_argument('docs_file', type=str, help="Clean document file in json format")
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
+    parser.add_argument('folds_file', type=str, help="Folds file in json format")
     parser.add_argument('prediction_file', type=str, help="Clean document file in json format")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
@@ -50,6 +51,7 @@ if __name__ == '__main__':
         argvs.topics_file,
         argvs.docs_file,
         argvs.qrels_file,
+        argvs.folds_file,
         word_model=word2vec,
     )
     print(f'Got {len(test_set)} docs in {len(test_set.qids)} queries to be reranked')

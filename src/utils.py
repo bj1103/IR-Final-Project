@@ -1,6 +1,22 @@
 import json
 import numpy as np
 
+def get_qids(folds_file: str, mode: str, test_folds: list, qrels: dict):
+    tmp_qids = []
+    with open(folds_file) as f_folds:
+        folds = json.load(f_folds) 
+
+    if mode == 'all':
+        for i in range(len(folds)):
+            tmp_qids += folds[i]
+    elif mode == 'train':
+        for i in range(len(folds)):
+            if i not in test_folds:
+                tmp_qids += folds[i]
+    else:
+        for i in test_folds:
+            tmp_qids += folds[i]
+    return [qid for qid in tmp_qids if qid in qrels.keys()]
 
 def compute_MAP(prediction_file: str, qrels_file: str) -> float:
     qrels = json.load(open(qrels_file))

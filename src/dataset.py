@@ -7,11 +7,12 @@ import random
 import numpy as np
 import gensim.downloader as api
 from rank_bm25 import BM25Okapi
+from utils import get_qids
 
 
 
 class DRMMDataset(Dataset):
-    def __init__(self, qrels_file, topics_file, docs_file, word_model=None, mode='train', use_tag=["title", "description"]):
+    def __init__(self, qrels_file, topics_file, docs_file, folds_file, word_model=None, mode='train', test_folds=[4], use_tag=["title", "description"]):
         self.pos_docs = dict()
         self.neg_docs = dict()
         self.mode = mode
@@ -27,6 +28,7 @@ class DRMMDataset(Dataset):
             self.topics = json.load(f_topic)
         with open(docs_file) as f_docs:
             self.docs = json.load(f_docs)
+        self.qids = get_qids(folds_file, mode, test_folds, self.qrels)
 
         # Use bm25 to compute idf
         print('Computing IDF...', end='')
@@ -37,15 +39,6 @@ class DRMMDataset(Dataset):
         self.idf = BM25Okapi(corpus).idf
         print('Done')
         del corpus, corpus_tokens
-
-        total_qids = list(self.qrels.keys())
-        total_qids = np.array([int(qid) for qid in total_qids])
-        if self.mode == 'train':
-            indexs = list(set(range(len(total_qids))) - set(range(0, len(total_qids), 5)))
-        else:
-            indexs = list(range(0, len(total_qids), 5))
-
-        self.qids = total_qids[indexs]
 
         for qid in self.qids:
             qid = str(qid)
@@ -102,7 +95,7 @@ def collate_batch(batch):
     return q, p, n, idf
 
 class rerankDataset(Dataset):
-    def __init__(self, ranking_file, topics_file, docs_file, qrels_file, word_model=None, use_tag=["title", "description"]):
+    def __init__(self, ranking_file, topics_file, docs_file, qrels_file, folds_file, word_model=None, test_folds=[4],  use_tag=["title", "description"]):
         self.use_tag = use_tag
         self.translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
         if word_model is None:
@@ -117,11 +110,7 @@ class rerankDataset(Dataset):
             self.docs = json.load(f_docs)
         with open(qrels_file) as f_qrels:
             self.qrels = json.load(f_qrels)
-
-        total_qids = list(self.qrels.keys())
-        total_qids = np.array([int(qid) for qid in total_qids])
-        indexs = list(range(0, len(total_qids), 5))
-        self.qids = [str(qid) for qid in total_qids[indexs]]
+        self.qids = get_qids(folds_file, 'test', test_folds, self.qrels)
 
         corpus = list()
         for doc in self.docs:
