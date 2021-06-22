@@ -1,21 +1,24 @@
 import json
 import numpy as np
+import ir_datasets
 
-def get_qids(folds_file: str, mode: str, test_folds: list, qrels: dict):
+def get_qids(mode: str, test_folds: list, qrels: dict):
     tmp_qids = []
-    with open(folds_file) as f_folds:
-        folds = json.load(f_folds) 
-
     if mode == 'all':
-        for i in range(len(folds)):
-            tmp_qids += folds[i]
+        for i in range(1, 6):
+            dataset = ir_datasets.load(f"trec-robust04/fold{i}")
+            for query in dataset.queries_iter():
+                tmp_qids.append(query[0])
     elif mode == 'train':
-        for i in range(len(folds)):
-            if i not in test_folds:
-                tmp_qids += folds[i]
+        for i in range(1, 5):
+            dataset = ir_datasets.load(f"trec-robust04/fold{i}")
+            for query in dataset.queries_iter():
+                tmp_qids.append(query[0])
     else:
-        for i in test_folds:
-            tmp_qids += folds[i]
+        dataset = ir_datasets.load("trec-robust04/fold5")
+        for query in dataset.queries_iter():
+            tmp_qids.append(query[0])
+
     return [qid for qid in tmp_qids if qid in qrels.keys()]
 
 def compute_MAP(prediction_file: str, qrels_file: str) -> float:
