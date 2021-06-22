@@ -24,7 +24,7 @@ def load_documents(cor: str, translator):
         docs_list.append(doc)
     return docs_list, corpus
     
-def compute_score(docs_file: str, topics_file: str, qrels_file: str, prediction_file: str, translator, rank_to_k=2000, use_tag=["title", "description"]):
+def compute_score(docs_file: str, topics_file: str, qrels_file: str, prediction_file: str, translator, rank_to_k=2000, mode='all', use_tag=["title", "description"]):
     with open(docs_file) as f:
         cor = json.load(f)
     with open(topics_file) as f:
@@ -36,7 +36,11 @@ def compute_score(docs_file: str, topics_file: str, qrels_file: str, prediction_
 
     total_qids = list(qrels.keys())
     total_qids = np.array([int(qid) for qid in total_qids])
-    indexs = list(range(0, len(total_qids), 5))
+    if mode == 'all':
+        indexs = list(range(len(total_qids)))
+    else:
+        indexs = list(range(0, len(total_qids), 5))
+    
     qids = [str(qid) for qid in total_qids[indexs]]
 
     bm25 = BM25Okapi(tokenized_corpus)
@@ -67,7 +71,8 @@ if __name__ == '__main__':
     parser.add_argument('qrels_file', type=str, help="Qrels file in json format")
     parser.add_argument('prediction_file', type=str, help="Output the prediction")
     parser.add_argument('--top_k', type=int, default=2000, help="Output the prediction")
+    parser.add_argument('--mode', type=str, default='all', help="Output the prediction")
     argvs = parser.parse_args()
 
     translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
-    compute_score(argvs.docs_file, argvs.topics_file, argvs.qrels_file, argvs.prediction_file, translator, rank_to_k=argvs.top_k)
+    compute_score(argvs.docs_file, argvs.topics_file, argvs.qrels_file, argvs.prediction_file, translator, rank_to_k=argvs.top_k, mode=argvs.mode)
