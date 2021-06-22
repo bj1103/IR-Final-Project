@@ -102,21 +102,23 @@ def collate_batch(batch):
     return q, p, n, idf
 
 class rerankDataset(Dataset):
-    def __init__(self, ranking_file, topics_file, docs_file, word_model=None, use_tag=["title", "description"]):
+    def __init__(self, ranking_file, topics_file, docs_file, qrels_file, word_model=None, use_tag=["title", "description"]):
         self.use_tag = use_tag
         self.translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
         if word_model is None:
             word_model = api.load('glove-twitter-25')
         self.word2id = word_model.key_to_index
 
-        with open(ranking_file) as f_qrel:
-            self.rank_list = json.load(f_qrel)
+        with open(ranking_file) as f_rank:
+            self.rank_list = json.load(f_rank)
         with open(topics_file) as f_topic:
             self.topics = json.load(f_topic)
         with open(docs_file) as f_docs:
             self.docs = json.load(f_docs)
+        with open(qrels_file) as f_qrels:
+            self.qrels = json.load(f_qrels)
 
-        total_qids = list(self.rank_list.keys())
+        total_qids = list(self.qrels.keys())
         total_qids = np.array([int(qid) for qid in total_qids])
         indexs = list(range(0, len(total_qids), 5))
         self.qids = [str(qid) for qid in total_qids[indexs]]
