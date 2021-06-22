@@ -2,7 +2,7 @@ import argparse
 import json
 
 from torch.utils.data.dataset import Dataset
-import gensim.downloader as api
+import gensim
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -22,11 +22,12 @@ def collate_batch(batch):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
-    parser.add_argument('ranking_file', type=str, help="Ranjing file in json format")
-    parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_file', type=str, help="Clean document file in json format")
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
-    parser.add_argument('folds_file', type=str, help="Folds file in json format")
+    parser.add_argument('ranking_file', type=str, help="Ranjing file in json format")
+    parser.add_argument('query_id_file', type=str, help="Embedded query in json format")
+    parser.add_argument('docs_id_file', type=str, help="Embedded documents in json format")
+    parser.add_argument('idf_file', type=str, help="IDF among documents in json format")
+    parser.add_argument('w2v_file', type=str, help="Word2vec model file with npy file under same directory")
     parser.add_argument('prediction_file', type=str, help="Clean document file in json format")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
@@ -41,18 +42,14 @@ if __name__ == '__main__':
     print(f'Using device {device}')
 
     print('Loading word2vec model...')
-    word2vec = api.load('word2vec-google-news-300')
-    embedding_weights = torch.FloatTensor(word2vec.vectors)
-    word_embedding = nn.Embedding.from_pretrained(embedding_weights).to(device)
-    word_embedding.requires_grad = False
+    word2vec = gensim.models.Word2Vec.load(argvs.w2v_file).wv
     print('done')
     test_set = rerankDataset(
         argvs.ranking_file,
-        argvs.topics_file,
-        argvs.docs_file,
         argvs.qrels_file,
-        argvs.folds_file,
-        word_model=word2vec,
+        argvs.query_id_file,
+        argvs.docs_id_file,
+        argvs.idf_file
     )
     print(f'Got {len(test_set)} docs in {len(test_set.qids)} queries to be reranked')
     test_loader = DataLoader(
@@ -62,6 +59,10 @@ if __name__ == '__main__':
         collate_fn=collate_batch,
         num_workers=4,
     )
+
+    embedding_weights = torch.FloatTensor(word2vec.vectors)
+    word_embedding = nn.Embedding.from_pretrained(embedding_weights).to(device)
+    word_embedding.requires_grad = False
 
     model = DRMM(
         word_embedding=word_embedding,

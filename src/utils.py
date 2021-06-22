@@ -2,7 +2,7 @@ import json
 import numpy as np
 import ir_datasets
 
-def get_qids(mode: str, test_folds: list, qrels: dict):
+def get_qids(mode: str, qrels: dict):
     tmp_qids = []
     if mode == 'all':
         for i in range(1, 6):

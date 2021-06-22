@@ -1,5 +1,5 @@
 import argparse
-import gensim.downloader as api
+import gensim
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -63,9 +63,10 @@ def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
-    parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_file', type=str, help="Clean document file in json format")
-    parser.add_argument('folds_file', type=str, help="Folds file in json format")
+    parser.add_argument('query_id_file', type=str, help="Embedded query in json format")
+    parser.add_argument('docs_id_file', type=str, help="Embedded documents in json format")
+    parser.add_argument('idf_file', type=str, help="IDF among documents in json format")
+    parser.add_argument('w2v_file', type=str, help="Word2vec model file with npy file under same directory")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
     parser.add_argument('--valid_num', type=int, default=200, help="Number of steps doing validation")
@@ -79,14 +80,13 @@ if __name__ == '__main__':
     print(f'Using device {device}')
 
     print('Loading word2vec model...')
-    word2vec = api.load('word2vec-google-news-300')
+    word2vec = gensim.models.Word2Vec.load(argvs.w2v_file).wv
 
     train_set = DRMMDataset(
         argvs.qrels_file, 
-        argvs.topics_file, 
-        argvs.docs_file,
-        argvs.folds_file,
-        word_model=word2vec,
+        argvs.query_id_file, 
+        argvs.docs_id_file,
+        argvs.idf_file,
         mode='train',
     )
     train_loader = DataLoader(
@@ -98,10 +98,9 @@ if __name__ == '__main__':
     )
     test_set = DRMMDataset(
         argvs.qrels_file, 
-        argvs.topics_file, 
-        argvs.docs_file,
-        argvs.folds_file,
-        word_model=word2vec,
+        argvs.query_id_file, 
+        argvs.docs_id_file,
+        argvs.idf_file,
         mode='test',
     )
     test_loader = DataLoader(

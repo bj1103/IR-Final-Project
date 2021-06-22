@@ -12,33 +12,20 @@ from utils import get_qids
 
 
 class DRMMDataset(Dataset):
-    def __init__(self, qrels_file, topics_file, docs_file, folds_file, word_model=None, mode='train', test_folds=[4], use_tag=["title", "description"]):
+    def __init__(self, qrels_file, query_id_file, docs_id_file, idf_file, mode='train'):
         self.pos_docs = dict()
         self.neg_docs = dict()
-        self.mode = mode
-        self.use_tag = use_tag
-        self.translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
-        if word_model is None:
-            word_model = api.load('glove-twitter-25')
-        self.word2id = word_model.key_to_index
 
         with open(qrels_file) as f_qrel:
             self.qrels = json.load(f_qrel)
-        with open(topics_file) as f_topic:
-            self.topics = json.load(f_topic)
-        with open(docs_file) as f_docs:
-            self.docs = json.load(f_docs)
-        self.qids = get_qids(folds_file, mode, test_folds, self.qrels)
-
-        # Use bm25 to compute idf
-        print('Computing IDF...', end='')
-        corpus = list()
-        for doc in self.docs:
-            corpus_tokens = self.docs[doc].translate(self.translator).strip().lower().split()
-            corpus.append([token.strip() for token in corpus_tokens if token.strip() != ''])
-        self.idf = BM25Okapi(corpus).idf
-        print('Done')
-        del corpus, corpus_tokens
+        with open(query_id_file) as f_query_id:
+            self.query_id = json.load(f_query_id)
+        with open(docs_id_file) as f_docs_id:
+            self.docs_id = json.load(f_docs_id)
+        with open(idf_file) as f_idf:
+            self.idf = json.load(f_idf)
+        self.qids = get_qids(mode, self.qrels)
+        self.doc_num = len(self.docs_id)
 
         for qid in self.qids:
             qid = str(qid)
@@ -55,33 +42,16 @@ class DRMMDataset(Dataset):
 
     def __getitem__(self, index):
         qid = str(self.qids[index])
-        query = ''
-        for tag in self.use_tag:
-            query += self.topics[qid][tag]
-            query += ' '
-        query, q_idf = self.convert_sentence(query.lower())
+        query = self.query_id[qid]
+        q_idf = [self.idf[str(wid)] if str(wid) in self.idf else np.log(self.doc_num) for wid in query]
 
         pos_doc = random.choice(self.pos_docs[qid])
         neg_doc = random.choice(self.neg_docs[qid])
 
-        pos_doc_content, _ = self.convert_sentence(self.docs[pos_doc].lower())
-        neg_doc_content, _ = self.convert_sentence(self.docs[neg_doc].lower())
+        pos_doc_embed = self.docs_id[pos_doc]
+        neg_doc_embed = self.docs_id[neg_doc]
 
-        return query, pos_doc_content, neg_doc_content, q_idf
-
-    def convert_sentence(self, s):
-        vec = list()
-        w_idf = list()
-        for word in s.split():
-            # remove puctuation
-            word = word.translate(str.maketrans(string.punctuation, ' '*len(string.punctuation))).strip().split()
-            for w in word:
-                try:
-                    vec.append(self.word2id[w])
-                    w_idf.append(self.idf[w])
-                except:
-                    continue
-        return torch.tensor(vec), torch.tensor(w_idf)
+        return torch.tensor(query), torch.tensor(pos_doc_embed), torch.tensor(neg_doc_embed), torch.tensor(q_idf)
 
 def collate_batch(batch):
     q, p, n, idf = zip(*batch)
@@ -95,30 +65,19 @@ def collate_batch(batch):
     return q, p, n, idf
 
 class rerankDataset(Dataset):
-    def __init__(self, ranking_file, topics_file, docs_file, qrels_file, folds_file, word_model=None, test_folds=[4],  use_tag=["title", "description"]):
-        self.use_tag = use_tag
-        self.translator = str.maketrans(string.punctuation, ' '*len(string.punctuation))
-        if word_model is None:
-            word_model = api.load('glove-twitter-25')
-        self.word2id = word_model.key_to_index
-
+    def __init__(self, ranking_file, qrels_file, query_id_file, docs_id_file, idf_file):
         with open(ranking_file) as f_rank:
             self.rank_list = json.load(f_rank)
-        with open(topics_file) as f_topic:
-            self.topics = json.load(f_topic)
-        with open(docs_file) as f_docs:
-            self.docs = json.load(f_docs)
+        with open(query_id_file) as f_query_id:
+            self.query_id = json.load(f_query_id)
+        with open(docs_id_file) as f_docs_id:
+            self.docs_id = json.load(f_docs_id)
         with open(qrels_file) as f_qrels:
             self.qrels = json.load(f_qrels)
-        self.qids = get_qids(folds_file, 'test', test_folds, self.qrels)
-
-        corpus = list()
-        for doc in self.docs:
-            corpus_tokens = self.docs[doc].translate(self.translator).strip().lower().split()
-            corpus.append([token.strip() for token in corpus_tokens if token.strip() != ''])
-        self.idf = BM25Okapi(corpus).idf
-        print('Done')
-        del corpus, corpus_tokens
+        with open(idf_file) as f_idf:
+            self.idf = json.load(f_idf)
+        self.qids = get_qids('test', self.qrels)
+        self.doc_num = len(self.docs_id)
 
         self.data = list()
         for qid in self.qids:
@@ -130,38 +89,23 @@ class rerankDataset(Dataset):
 
     def __getitem__(self, index):
         qid, doc, id = self.data[index]
-        query = ''
-        for tag in self.use_tag:
-            query += self.topics[qid][tag]
-            query += ' '
-        query, q_idf = self.convert_sentence(query.lower())
+        qid = str(self.qids[index])
+        query = self.query_id[qid]
+        q_idf = [self.idf[str(wid)] if str(wid) in self.idf else np.log(self.doc_num) for wid in query]
 
-        doc_content, _ = self.convert_sentence(self.docs[doc].lower())
+        doc_embed = self.docs_id[doc]
 
-        return query, doc_content, q_idf, qid, id
-
-    def convert_sentence(self, s):
-        vec = list()
-        w_idf = list()
-        for word in s.split():
-            # remove puctuation
-            word = word.translate(str.maketrans(string.punctuation, ' '*len(string.punctuation))).strip().split()
-            for w in word:
-                try:
-                    vec.append(self.word2id[w])
-                    w_idf.append(self.idf[w])
-                except:
-                    continue
-        return torch.tensor(vec), torch.tensor(w_idf)
+        return torch.tensor(query), torch.tensor(doc_embed), torch.tensor(q_idf), id
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='dataset')
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
-    parser.add_argument('topics_file', type=str, help="Topic file in json format")
-    parser.add_argument('docs_file', type=str, help="Clean documents in json format")
+    parser.add_argument('query_id_file', type=str, help="Embedded query in json format")
+    parser.add_argument('docs_id_file', type=str, help="Embedded documents in json format")
+    parser.add_argument('idf_file', type=str, help="IDF among documents in json format")
     argvs = parser.parse_args()
-    test = DRMMDataset(argvs.qrels_file, argvs.topics_file, argvs.docs_file)
+    test = DRMMDataset(argvs.qrels_file, argvs.query_id_file, argvs.docs_id_file, argvs.idf_file)
     print('Load data done')
     loader = DataLoader(test, batch_size=2, shuffle=False, collate_fn=collate_batch)
     for q, p, n, ql, pl, nl, idf in loader:
