@@ -4,9 +4,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class DRMM(nn.Module):
-    def __init__(self, embed_dim: int = 300, nbins: int = 30, device: str = 'cuda') -> None:
+    def __init__(self, embed_dim: int = 300, nbins: int = 30, 
+                 device: str = 'cuda', mode: str = 'idf') -> None:
         super(DRMM, self).__init__()
         self.device = device
+        self.mode = mode
         self.nbins = nbins
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
@@ -17,11 +19,18 @@ class DRMM(nn.Module):
             nn.Linear(1, 1),
             nn.Tanh(),
         )
-        self.gate = nn.Sequential(
-            nn.Linear(embed_dim, 1),
-            nn.Tanh(),
-        )
+        if mode == 'idf':
+            self.gate = nn.Sequential(
+                nn.Linear(1, 1),
+                nn.Tanh(),
+            )
+        else:
+            self.gate = nn.Sequential(
+                nn.Linear(embed_dim, 1),
+                nn.Tanh(),
+            )
 
+    """Thanks to https://discuss.pytorch.org/t/apply-mask-softmax/14212"""
     def masked_softmax(self, vec: Tensor, mask: Tensor, dim: int = 1, epsilon: float = 1e-5) -> Tensor:
         exps = torch.exp(vec)
         masked_exps = exps * mask.float()
@@ -38,6 +47,7 @@ class DRMM(nn.Module):
             document: (batch_size, max_document_len, embed_dim) document id sequence
             document_mask: [batch_size, max_document_len] mask[i][j] = 0 if query[i][j] is <PAD>, 
                 otherwise mask[i][j] = 1
+            query_idf: (batch_size, max_query_len) IDF of each query term
         Returns:
             scores: (batch_size) relevance scores
         """
@@ -56,8 +66,9 @@ class DRMM(nn.Module):
         # z.shape: (batch, max_query_len)
         z = self.ffn(h).squeeze(-1)
 
+        gete_input = q_idf.unsqueeze(-1) if self.mode == 'idf' else query
         # g.shape: (batch, max_query_len)
-        g = self.gate(query).squeeze(-1)
+        g = self.gate(gete_input).squeeze(-1)
         # g = self.softmax(g)
         g = self.masked_softmax(g, query_mask)
 
