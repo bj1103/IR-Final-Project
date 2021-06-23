@@ -108,14 +108,16 @@ if __name__ == '__main__':
     loader = DataLoader(test, batch_size=1, shuffle=False, collate_fn=collate_batch)
     for q, p, n, idf in loader:
         print('=======query=======')
-        for id in q:
-            print(word2vec.index_to_key[id], end=' ')
+        for id in q[0]:
+            print(word2vec.index_to_key[int(id)], end=' ')
+        input()
         print('')
         print('=======pos document=======')
-        for id in p:
-            print(word2vec.index_to_key[id], end=' ')
-        print('=======pos document=======')
-        for id in n:
-            print(word2vec.index_to_key[id], end=' ')
+        for id in p[0]:
+            print(word2vec.index_to_key[int(id)], end=' ')
+        input()
+        print('=======neg document=======')
+        for id in n[0]:
+            print(word2vec.index_to_key[int(id)], end=' ')
 
         input()
