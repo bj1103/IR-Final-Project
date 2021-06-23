@@ -14,8 +14,10 @@ def loss_fn(scores_pos: Tensor, scores_neg: Tensor, device: str) -> Tensor:
     z = torch.zeros(scores_pos.shape).to(device)
     return torch.sum(torch.max(z, 1.0 - scores_pos + scores_neg))
 
-def model_fn(batch, word_embedding, model, device):
+def model_fn(batch, word_embedding, drmm_model, device):
     query, pos_doc, neg_doc, q_idf = batch
+
+
     query, pos_doc, neg_doc, q_idf = query.to(device), pos_doc.to(device), neg_doc.to(device), q_idf.to(device)
     
     query_mask = (query > 0).float()

@@ -1,12 +1,9 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
-from pathlib import Path
 import json
-import string
 import random
 import numpy as np
-import gensim.downloader as api
-from rank_bm25 import BM25Okapi
+import gensim
 from utils import get_qids
 
 
@@ -89,13 +86,12 @@ class rerankDataset(Dataset):
 
     def __getitem__(self, index):
         qid, doc, id = self.data[index]
-        qid = str(self.qids[index])
         query = self.query_id[qid]
         q_idf = [self.idf[str(wid)] if str(wid) in self.idf else np.log(self.doc_num) for wid in query]
 
         doc_embed = self.docs_id[doc]
 
-        return torch.tensor(query), torch.tensor(doc_embed), torch.tensor(q_idf), id
+        return torch.tensor(query), torch.tensor(doc_embed), torch.tensor(q_idf), qid, id
 
 if __name__ == '__main__':
     import argparse
@@ -104,10 +100,22 @@ if __name__ == '__main__':
     parser.add_argument('query_id_file', type=str, help="Embedded query in json format")
     parser.add_argument('docs_id_file', type=str, help="Embedded documents in json format")
     parser.add_argument('idf_file', type=str, help="IDF among documents in json format")
+    parser.add_argument('w2v_file', type=str, help="Word2vec model file with npy file under same directory")
     argvs = parser.parse_args()
+    word2vec = gensim.models.Word2Vec.load(argvs.w2v_file).wv
     test = DRMMDataset(argvs.qrels_file, argvs.query_id_file, argvs.docs_id_file, argvs.idf_file)
     print('Load data done')
-    loader = DataLoader(test, batch_size=2, shuffle=False, collate_fn=collate_batch)
-    for q, p, n, ql, pl, nl, idf in loader:
-        print(f'===query===\n{ql}\n{q}\n===pos_doc===\n{pl}\n{p}\n===neg_doc===\n{nl}\n{n}\n{idf}')
+    loader = DataLoader(test, batch_size=1, shuffle=False, collate_fn=collate_batch)
+    for q, p, n, idf in loader:
+        print('=======query=======')
+        for id in q:
+            print(word2vec.index_to_key[id], end=' ')
+        print('')
+        print('=======pos document=======')
+        for id in p:
+            print(word2vec.index_to_key[id], end=' ')
+        print('=======pos document=======')
+        for id in n:
+            print(word2vec.index_to_key[id], end=' ')
+
         input()

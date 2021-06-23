@@ -30,11 +30,7 @@ if __name__ == '__main__':
     parser.add_argument('w2v_file', type=str, help="Word2vec model file with npy file under same directory")
     parser.add_argument('prediction_file', type=str, help="Clean document file in json format")
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
-    parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
-    parser.add_argument('--save_steps', type=int, default=1000, help="Steps to save best model")
-    parser.add_argument('--valid_num', type=int, default=200, help="Number of steps doing validation")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
-    parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
     parser.add_argument('--nbins', type=int, default=30, help="Number of bins for histogram")
     argvs = parser.parse_args()
 
@@ -65,8 +61,7 @@ if __name__ == '__main__':
     word_embedding.requires_grad = False
 
     model = DRMM(
-        word_embedding=word_embedding,
-        embed_dim=embedding_weights.shape[1],
+        embed_dim=embedding_weights.shape[1], 
         nbins=argvs.nbins,
         device=device,
     ).to(device)
@@ -78,9 +73,16 @@ if __name__ == '__main__':
     ckpt = torch.load(argvs.model_path, map_location=torch.device(device))
     model.load_state_dict(ckpt)
     model.eval()
-    for query, document, q_idf, qids, indexs in tqdm(test_loader):
-        query, document, q_idf = query.to(device), document.to(device), q_idf.to(device)
-        scores = model(query, document, q_idf)
+    for query, doc, q_idf, qids, indexs in tqdm(test_loader):
+        query, doc, q_idf = query.to(device), doc.to(device), q_idf.to(device)
+        
+        query_mask = (query > 0).float()
+        doc_mask = (doc > 0).float()
+
+        query = word_embedding(query) * query_mask.unsqueeze(-1)
+        doc = word_embedding(doc) * doc_mask.unsqueeze(-1)
+
+        scores = model(query, query_mask, doc, doc_mask, q_idf)
         scores = scores.to('cpu')
         for batch_id, (qid, index) in enumerate(zip(qids, indexs)):
             prediction[qid][index][1] = scores[batch_id].item()
