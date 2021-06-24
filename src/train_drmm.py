@@ -60,6 +60,7 @@ def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='dataset')
     parser.add_argument('qrels_file', type=str, help="Qrel file in json format")
+    parser.add_argument('okapi_qrels_file', type=str, help="Okapi qrel file in json format")
     parser.add_argument('query_id_file', type=str, help="Embedded query in json format")
     parser.add_argument('docs_id_file', type=str, help="Embedded documents in json format")
     parser.add_argument('idf_file', type=str, help="IDF among documents in json format")
@@ -83,6 +84,7 @@ if __name__ == '__main__':
 
     train_set = DRMMDataset(
         argvs.qrels_file, 
+        argvs.okapi_qrels_file, 
         argvs.query_id_file, 
         argvs.docs_id_file,
         argvs.idf_file,
@@ -97,6 +99,7 @@ if __name__ == '__main__':
     )
     test_set = DRMMDataset(
         argvs.qrels_file, 
+        argvs.okapi_qrels_file, 
         argvs.query_id_file, 
         argvs.docs_id_file,
         argvs.idf_file,
