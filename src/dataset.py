@@ -10,12 +10,14 @@ import torch.nn as nn
 
 
 class DRMMDataset(Dataset):
-    def __init__(self, qrels_file, query_id_file, docs_id_file, idf_file, mode='train'):
+    def __init__(self, qrels_file, okapi_qrels_file, query_id_file, docs_id_file, idf_file, mode='train'):
         self.pos_docs = dict()
         self.neg_docs = dict()
 
         with open(qrels_file) as f_qrel:
             self.qrels = json.load(f_qrel)
+        with open(okapi_qrels_file) as f_okapi_qrel:
+            self.okapi_qrels = json.load(f_okapi_qrel)
         with open(query_id_file) as f_query_id:
             self.query_id = json.load(f_query_id)
         with open(docs_id_file) as f_docs_id:
@@ -32,7 +34,8 @@ class DRMMDataset(Dataset):
             for doc in self.qrels[qid]['document']:
                 if self.qrels[qid]['document'][doc] > 0:
                     self.pos_docs[qid].append(doc)
-                else:
+            for doc in self.okapi_qrels[qid]['document']:
+                if self.okapi_qrels[qid]['document'][doc] == 0:
                     self.neg_docs[qid].append(doc)
 
     def __len__(self):
