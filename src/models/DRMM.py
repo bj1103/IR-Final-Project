@@ -13,23 +13,23 @@ class DRMM(nn.Module):
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
             nn.Linear(nbins, nbins),
-            nn.Tanh(),
+            nn.LeakyReLU(),
             nn.Linear(nbins, 1),
-            nn.Tanh(),
+            nn.LeakyReLU(),
         )
         if mode == 'idf':
             print('Using IDF mode!')
             self.gate = nn.Sequential(
                 nn.Linear(1, 1),
-                # nn.Tanh(),
+                nn.Tanh(),
             )
         else:
             print('Using Term Vector mode!')
             self.gate = nn.Sequential(
                 nn.Linear(embed_dim, embed_dim),
-                nn.Tanh(),
+                nn.LeakyReLU(),
                 nn.Linear(embed_dim, 1),
-                nn.Tanh(),
+                nn.LeakyReLU(),
             )
 
     """Thanks to https://discuss.pytorch.org/t/apply-mask-softmax/14212"""
@@ -60,10 +60,11 @@ class DRMM(nn.Module):
         interaction = torch.bmm(query_norm, document_norm.transpose(1, 2))
 
         # h.shape: (batch, max_query_len, self.nbins)
-        h = torch.empty((interaction.shape[0], interaction.shape[1], self.nbins)).to(self.device)
+        h = torch.empty((interaction.shape[0], interaction.shape[1], self.nbins))
         for b in range(interaction.shape[0]):
             for q in range(interaction.shape[1]):
                 h[b, q] = torch.histc(interaction[b, q], bins=self.nbins, min=-1, max=1)
+        h = h.to(self.device)
         h = torch.log1p(h)
         # z.shape: (batch, max_query_len)
         z = self.ffn(h).squeeze(-1)

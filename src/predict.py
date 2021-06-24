@@ -32,6 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, default='drmm.ckpt', help="Path to model checkpoint")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
     parser.add_argument('--nbins', type=int, default=30, help="Number of bins for histogram")
+    parser.add_argument('--mode', type=str, default='idf', choices=['idf', 'tv'], help="Mode of DRMM")
     argvs = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -64,6 +65,7 @@ if __name__ == '__main__':
         embed_dim=embedding_weights.shape[1], 
         nbins=argvs.nbins,
         device=device,
+        mode=argvs.mode,
     ).to(device)
 
     prediction = dict()

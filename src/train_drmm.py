@@ -69,6 +69,7 @@ if __name__ == '__main__':
     parser.add_argument('--valid_num', type=int, default=200, help="Number of steps doing validation")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
     parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
+    parser.add_argument('--weight_decay', type=float, default=0.0, help="Weight decay")
     parser.add_argument('--nbins', type=int, default=30, help="Number of bins for histogram")
     parser.add_argument('--mode', type=str, default='idf', choices=['idf', 'tv'], help="Mode of DRMM")
     argvs = parser.parse_args()
@@ -124,19 +125,18 @@ if __name__ == '__main__':
         mode=argvs.mode,
     ).to(device)
 
-    optimizer = Adam(drmm_model.parameters(), argvs.lr)
+    optimizer = Adam(drmm_model.parameters(), argvs.lr, weight_decay=argvs.weight_decay)
     criterion = torch.nn.MarginRankingLoss(margin=1, reduction='mean').to(device)
     lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=5, factor=0.5, verbose=True)
 
     valid_steps = argvs.valid_steps
     valid_num = argvs.valid_num
+
     pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
     step = 0
     best_acc = 0.0
-    prev_acc = 0.0
     running_acc = 0.0
     running_loss = 0.0
-    best_state_dict = None
 
     while True:
         try:
@@ -147,6 +147,8 @@ if __name__ == '__main__':
 
         loss, acc = model_fn(batch, word_embedding, drmm_model, criterion, device)
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(drmm_model.parameters(), 5.0)
+
         optimizer.step()
         optimizer.zero_grad()
 
