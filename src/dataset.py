@@ -5,6 +5,7 @@ import random
 import numpy as np
 import gensim
 from utils import get_qids
+import torch.nn as nn
 
 
 
@@ -106,18 +107,43 @@ if __name__ == '__main__':
     test = DRMMDataset(argvs.qrels_file, argvs.query_id_file, argvs.docs_id_file, argvs.idf_file)
     print('Load data done')
     loader = DataLoader(test, batch_size=1, shuffle=False, collate_fn=collate_batch)
+    device = torch.device('cpu')
+
+    embedding_weights = torch.FloatTensor(word2vec.vectors)
+    word_embedding = nn.Embedding.from_pretrained(embedding_weights).to(device)
+    word_embedding.requires_grad = False
+
     for q, p, n, idf in loader:
+        query, pos_doc, neg_doc, q_idf = q.to(device), p.to(device), n.to(device), idf.to(device)
+    
+        query_mask = (query > 0).float()
+        pos_doc_mask = (pos_doc > 0).float()
+        neg_doc_mask = (neg_doc > 0).float()
+        
+        query = word_embedding(query) * query_mask.unsqueeze(-1)
+        pos_doc = word_embedding(pos_doc) * pos_doc_mask.unsqueeze(-1)
+        neg_doc = word_embedding(neg_doc) * neg_doc_mask.unsqueeze(-1)
+        print(query.shape)
+        q_len, p_len, n_len = len(q[0]), len(pos_doc[0]), len(neg_doc[0])
+        pos_sim = np.zeros(p_len)
+        neg_sim = np.zeros(n_len)
         print('=======query=======')
-        for id in q[0]:
-            print(word2vec.index_to_key[int(id)], end=' ')
+        for i in range(q_len):
+            pos_sim += np.array(word2vec.cosine_similarities(query[0][i], pos_doc[0]))
+            neg_sim += np.array(word2vec.cosine_similarities(query[0][i], neg_doc[0]))
+            print(word2vec.index_to_key[int(q[0][i])], end=' ')
         input()
+        pos_sim = (pos_sim / q_len).mean()
+        neg_sim = (neg_sim / n_len).mean()
         print('')
         print('=======pos document=======')
         for id in p[0]:
             print(word2vec.index_to_key[int(id)], end=' ')
+        
         input()
         print('=======neg document=======')
         for id in n[0]:
             print(word2vec.index_to_key[int(id)], end=' ')
+        print('\n', pos_sim, neg_sim)
 
         input()
