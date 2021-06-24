@@ -176,13 +176,13 @@ if __name__ == '__main__':
             
             valid_loss, valid_acc = valid_fn(test_loader, test_iterator, word_embedding, 
                 drmm_model, valid_num, argvs.batch_size, device)
+            lr_scheduler.step(valid_loss)
 
             if valid_acc > best_acc:
                 best_acc = valid_acc
-                torch.save(drmm_model.state_dict(), argvs.model_path)
+                torch.save(drmm_model.state_dict(), argvs.model_path + '_best.ckpt')
                 pbar.write(f'Step {step+1}, best model saved with accuracy {best_acc:.4f}')
-
-            lr_scheduler.step(valid_loss)
+            torch.save(drmm_model.state_dict(), argvs.model_path + '_last.ckpt')
             
             pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
 

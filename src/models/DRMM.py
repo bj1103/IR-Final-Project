@@ -12,9 +12,11 @@ class DRMM(nn.Module):
         self.nbins = nbins
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
-            nn.Linear(nbins, nbins),
+            nn.Linear(nbins, 5),
             nn.Tanh(),
-            nn.Linear(nbins, 1),
+            nn.Linear(5, 1),
+            nn.Tanh(),
+            nn.Linear(1, 1),
             nn.Tanh(),
         )
         if mode == 'idf':
@@ -26,10 +28,7 @@ class DRMM(nn.Module):
         else:
             print('Using Term Vector mode!')
             self.gate = nn.Sequential(
-                nn.Linear(embed_dim, 8),
-                nn.LeakyReLU(),
-                nn.Linear(8, 1),
-                nn.LeakyReLU(),
+                nn.Linear(embed_dim, 1),
             )
 
     """Thanks to https://discuss.pytorch.org/t/apply-mask-softmax/14212"""
