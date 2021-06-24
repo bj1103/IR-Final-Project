@@ -13,22 +13,22 @@ class DRMM(nn.Module):
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
             nn.Linear(nbins, nbins),
-            nn.LeakyReLU(),
+            nn.Tanh(),
             nn.Linear(nbins, 1),
-            nn.LeakyReLU(),
+            nn.Tanh(),
         )
         if mode == 'idf':
             print('Using IDF mode!')
             self.gate = nn.Sequential(
                 nn.Linear(1, 1),
-                nn.Tanh(),
+                nn.LeakyReLU(),
             )
         else:
             print('Using Term Vector mode!')
             self.gate = nn.Sequential(
-                nn.Linear(embed_dim, embed_dim),
+                nn.Linear(embed_dim, 8),
                 nn.LeakyReLU(),
-                nn.Linear(embed_dim, 1),
+                nn.Linear(8, 1),
                 nn.LeakyReLU(),
             )
 
