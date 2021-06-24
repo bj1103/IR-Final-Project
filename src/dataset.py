@@ -34,8 +34,7 @@ class DRMMDataset(Dataset):
             for doc in self.qrels[qid]['document']:
                 if self.qrels[qid]['document'][doc] > 0:
                     self.pos_docs[qid].append(doc)
-            for doc in self.okapi_qrels[qid]['document']:
-                if self.okapi_qrels[qid]['document'][doc] == 0:
+                else:
                     self.neg_docs[qid].append(doc)
 
     def __len__(self):
