@@ -3,21 +3,16 @@ import gensim
 import torch
 from torch import Tensor
 import torch.nn as nn
-from torch.optim import AdamW
+from torch.optim import *
+from torch.optim.lr_scheduler import *
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataset import DRMMDataset, collate_batch
 from models.DRMM import DRMM
 
-def loss_fn(scores_pos: Tensor, scores_neg: Tensor, device: str) -> Tensor:
-    z = torch.zeros(scores_pos.shape).to(device)
-    return torch.sum(torch.max(z, 1.0 - scores_pos + scores_neg))
-
-def model_fn(batch, word_embedding, drmm_model, device):
+def model_fn(batch, word_embedding, drmm_model, criterion, device):
     query, pos_doc, neg_doc, q_idf = batch
-
-
     query, pos_doc, neg_doc, q_idf = query.to(device), pos_doc.to(device), neg_doc.to(device), q_idf.to(device)
     
     query_mask = (query > 0).float()
@@ -30,9 +25,10 @@ def model_fn(batch, word_embedding, drmm_model, device):
 
     scores_pos = drmm_model(query, query_mask, pos_doc, pos_doc_mask, q_idf)
     scores_neg = drmm_model(query, query_mask, neg_doc, neg_doc_mask, q_idf)
+    label = torch.ones(scores_pos.shape).to(device)
 
-    loss = loss_fn(scores_pos, scores_neg, device)
-    acc = len(torch.where(scores_pos > scores_neg)[0])
+    loss = criterion(scores_pos, scores_neg, label)
+    acc = len(torch.where(scores_pos > scores_neg)[0]) / len(scores_pos)
     return loss, acc
 
 def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size, device):
@@ -47,9 +43,9 @@ def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size,
             iterator = iter(dataloader)
             batch = next(iterator)
         with torch.no_grad():
-            loss, acc = model_fn(batch, word_embedding, model, device)
-            running_loss += (loss.item() / batch_size)
-            running_acc += (acc / batch_size)
+            loss, acc = model_fn(batch, word_embedding, model, criterion, device)
+            running_loss += loss.item()
+            running_acc += acc
         pbar.update()
     running_loss /= valid_num
     running_acc /= valid_num
@@ -57,7 +53,6 @@ def valid_fn(dataloader, iterator, word_embedding, model, valid_num, batch_size,
         loss=f'{running_loss:.4f}',
         acc=f'{running_acc:.4f}',
     )
-    # pbar.update(f'loss={running_loss:.4f}, acc={running_acc:.4f}')
     pbar.close()
     drmm_model.train()
     return running_loss, running_acc
@@ -73,8 +68,9 @@ if __name__ == '__main__':
     parser.add_argument('--valid_steps', type=int, default=1000, help="Steps to validation")
     parser.add_argument('--valid_num', type=int, default=200, help="Number of steps doing validation")
     parser.add_argument('--batch_size', type=int, default=8, help="Batch size")
-    parser.add_argument('--lr', type=float, default=1e-3, help="Learning rate")
+    parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
     parser.add_argument('--nbins', type=int, default=30, help="Number of bins for histogram")
+    parser.add_argument('--mode', type=str, default='idf', choices=['idf', 'tv'], help="Mode of DRMM")
     argvs = parser.parse_args()
     print(argvs)
 
@@ -125,8 +121,12 @@ if __name__ == '__main__':
         embed_dim=embedding_weights.shape[1], 
         nbins=argvs.nbins,
         device=device,
+        mode=argvs.mode,
     ).to(device)
-    optimizer = AdamW(drmm_model.parameters(), argvs.lr)
+
+    optimizer = Adam(drmm_model.parameters(), argvs.lr)
+    criterion = torch.nn.MarginRankingLoss(margin=1, reduction='mean').to(device)
+    lr_scheduler = ReduceLROnPlateau(optimizer, mode="max", patience=5, factor=0.5, verbose=True)
 
     valid_steps = argvs.valid_steps
     valid_num = argvs.valid_num
@@ -145,12 +145,13 @@ if __name__ == '__main__':
             train_iterator = iter(train_loader)
             batch = next(train_iterator)
 
-        loss, acc = model_fn(batch, word_embedding, drmm_model, device)
-        running_acc += acc
-        running_loss += loss.item()
+        loss, acc = model_fn(batch, word_embedding, drmm_model, criterion, device)
         loss.backward()
         optimizer.step()
         optimizer.zero_grad()
+
+        running_acc += acc
+        running_loss += loss.item()
 
         pbar.update()
         pbar.set_postfix(
@@ -160,8 +161,8 @@ if __name__ == '__main__':
         if (step + 1) % valid_steps == 0:
             # do validation
             pbar.set_postfix(
-                loss=f'{running_loss / argvs.valid_steps / argvs.batch_size:.4f}',
-                acc=f'{running_acc / argvs.valid_steps / argvs.batch_size:.4f}',
+                loss=f'{running_loss / argvs.valid_steps:.4f}',
+                acc=f'{running_acc / argvs.valid_steps:.4f}',
             )
             # pbar.write(f'loss={running_loss / argvs.valid_steps / argvs.batch_size:.4f}, acc={running_acc / argvs.valid_steps / argvs.batch_size:.4f}')
             pbar.close()
@@ -175,6 +176,8 @@ if __name__ == '__main__':
                 best_acc = valid_acc
                 torch.save(drmm_model.state_dict(), argvs.model_path)
                 pbar.write(f'Step {step+1}, best model saved with accuracy {best_acc:.4f}')
+
+            lr_scheduler.step(valid_loss)
             
             pbar = tqdm(total=valid_steps, ncols=0, desc='Train', unit=' step')
 

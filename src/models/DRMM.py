@@ -12,20 +12,22 @@ class DRMM(nn.Module):
         self.nbins = nbins
         self.cos = nn.CosineSimilarity(dim=3)
         self.ffn = nn.Sequential(
-            nn.Linear(nbins, 5),
+            nn.Linear(nbins, nbins),
             nn.Tanh(),
-            nn.Linear(5, 1),
-            nn.Tanh(),
-            nn.Linear(1, 1),
+            nn.Linear(nbins, 1),
             nn.Tanh(),
         )
         if mode == 'idf':
+            print('Using IDF mode!')
             self.gate = nn.Sequential(
                 nn.Linear(1, 1),
-                nn.Tanh(),
+                # nn.Tanh(),
             )
         else:
+            print('Using Term Vector mode!')
             self.gate = nn.Sequential(
+                nn.Linear(embed_dim, embed_dim),
+                nn.Tanh(),
                 nn.Linear(embed_dim, 1),
                 nn.Tanh(),
             )
@@ -66,7 +68,7 @@ class DRMM(nn.Module):
         # z.shape: (batch, max_query_len)
         z = self.ffn(h).squeeze(-1)
 
-        gete_input = q_idf.unsqueeze(-1) if self.mode == 'idf' else query
+        gete_input = q_idf.float().unsqueeze(-1) if self.mode == 'idf' else query
         # g.shape: (batch, max_query_len)
         g = self.gate(gete_input).squeeze(-1)
         # g = self.softmax(g)
