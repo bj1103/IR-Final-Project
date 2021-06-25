@@ -1,0 +1,14 @@
+{
+    "bert_model": "/tmp2/b07902114/bert_uncased",
+    "query_type": "description",
+    "max_len": 300,
+    "window_size": 230,
+    "stride": 115,
+    "batch_size":64,
+    "test_batch_size":256,
+    "epoch": 1,
+    "warmup_step": 2000,
+    "accum_step": 4,
+    "lr":1e-5,
+    "save_step" : 20000
+}
