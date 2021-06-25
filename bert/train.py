@@ -67,7 +67,12 @@ def train(model, optimizer, scheduler, trainloader, devloader, total_step):
         train_loader = iter(trainloader)
         print(len(trainloader))
         for step in tqdm(range(total_step)):
-            data = next(train_loader)
+            try:
+                data = next(train_loader)
+            except StopIteration:
+                train_loader = iter(trainloader)
+                data = next(train_loader)
+            
             data = [x.to(device) for x in data]
 
             output = model(
