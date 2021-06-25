@@ -1,3 +1,4 @@
+import argparse
 import torch
 from torch.utils.data import DataLoader, Dataset
 import pickle
@@ -13,20 +14,21 @@ import ir_datasets
 from accelerate import Accelerator
 import numpy as np
 import random
+from DRMM import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 with open("./config.json") as f:
     config = json.load(f)
 
 def same_seeds(seed):
-      torch.manual_seed(seed)
-      if torch.cuda.is_available():
-            torch.cuda.manual_seed(seed)
-            torch.cuda.manual_seed_all(seed)
-      np.random.seed(seed)
-      random.seed(seed)
-      torch.backends.cudnn.benchmark = False
-      torch.backends.cudnn.deterministic = True
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 same_seeds(6553713)
 
 accelerator = Accelerator(fp16=True)
@@ -34,10 +36,14 @@ device = accelerator.device
 
 tokenizer = BertTokenizer.from_pretrained(config['bert_model'], do_lower_case = True)
 
-def build_model():
-    model = BertForSequenceClassification.from_pretrained(config['bert_model'])
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'], amsgrad=True)
+def build_model(model_path):
+    bert_model = BertForSequenceClassification.from_pretrained(config['bert_model'])
+    ckpt = torch.load(model_path)
+    bert_model.load_state_dict(ckpt['state_dict'])
+    bert_model.to(device)
+    model = CedrDRMM(bert_model)
     model.to(device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'], amsgrad=True)
     return model, optimizer
 
 def dev(model, devloader):
@@ -79,7 +85,7 @@ def train(model, optimizer, scheduler, trainloader, devloader, total_step):
                 input_ids = data[0], 
                 attention_mask = data[1], 
                 token_type_ids = data[2], 
-                labels = data[3]
+                labels = data[3],
             )
             # print('step : ', step, ' train loss : ', output.loss.item(), end='\r')
 
@@ -137,6 +143,10 @@ def get_cosine_schedule_with_warmup(
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Train bert-drmm')
+    parser.add_argument('model_path', type=str, default='bert.ckpt', help="Path to model checkpoint")
+    argvs = parser.parse_args()
+
     print('loading data...')
 
     with open('./qrels.json') as f:
