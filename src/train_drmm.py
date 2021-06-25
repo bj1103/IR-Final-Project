@@ -1,5 +1,5 @@
 import argparse
-import gensim
+from gensim.models import KeyedVectors
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     print(f'Using device {device}')
 
     print('Loading word2vec model...')
-    word2vec = gensim.models.Word2Vec.load(argvs.w2v_file).wv
+    word2vec = KeyedVectors.load_word2vec_format(argvs.w2v_file, binary=False)
 
     train_set = DRMMDataset(
         argvs.qrels_file, 

@@ -25,6 +25,7 @@ class DRMMDataset(Dataset):
         with open(idf_file) as f_idf:
             self.idf = json.load(f_idf)
         self.qids = get_qids(mode, self.qrels)
+        self.qids = [qid for qid in self.qids if self.query_id[qid] != []]
         self.doc_num = len(self.docs_id)
 
         for qid in self.qids:
